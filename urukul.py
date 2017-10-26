@@ -57,9 +57,8 @@ class CFG(Module):
             ("clk_sel", 1),
             ("sync_sel", 1),
 
-            ("dds_rst", 1),
+            ("rst", 1),
             ("io_rst", 1),
-            ("att_rst", 1),
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -71,9 +70,9 @@ class CFG(Module):
                 dds_common.profile.eq(self.data.profile),
                 clk.in_sel.eq(self.data.clk_sel),
                 dds_sync.sync_sel.eq(self.data.sync_sel),
-                dds_common.master_reset.eq(dds_common.reset),
+                dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
-                att.rst_n.eq(~self.data.att_rst),
+                att.rst_n.eq(~self.data.rst),
                 att.le.eq(self.data.att_le),
         ]
 
@@ -136,7 +135,8 @@ class Urukul(Module):
         self.clock_domains.cd_sck0 = ClockDomain("sck0", reset_less=True)
         self.clock_domains.cd_sck1 = ClockDomain("sck1", reset_less=True)
 
-        nu_sck, sync_clk = Signal(), Signal()
+        nu_sck = Signal()
+        sync_clk = Signal()
         self.specials += [
                 Instance("BUFG", i_I=eem[0].i, o_O=self.cd_sck1.clk),
                 Instance("BUFG", i_I=eem[2].i, o_O=nu_sck),
@@ -191,8 +191,8 @@ class Urukul(Module):
                 cfg.data.raw_bits().eq(sr.di),
                 sr.do.eq(stat.data.raw_bits()),
 
-                dds_common.reset.eq(cfg.data.dds_rst | (~en_9910 &
-                    eem[7].i)),
+                dds_common.reset.eq(cfg.data.rst |
+                    (~en_9910 & eem[7].i)),
         ]
         for i, ddsi in enumerate(dds):
             seli = Signal()
