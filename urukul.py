@@ -109,7 +109,7 @@ class Status(Module):
             ]
 
 
-class Top(Module):
+class Urukul(Module):
     def __init__(self, platform):
         clk = platform.request("clk")
         dds_sync = platform.request("dds_sync")
@@ -219,8 +219,8 @@ class Top(Module):
 def main():
     from urukul_cpld import Platform
     p = Platform()
-    top = Top(p)
-    p.build(top, mode="cpld")
+    urukul = Urukul(p)
+    p.build(urukul, build_name="urukul", mode="cpld")
 
 
 if __name__ == "__main__":
