@@ -139,7 +139,7 @@ class Urukul(Module):
         nu_sck, sync_clk = Signal(), Signal()
         self.specials += [
                 Instance("BUFG", i_I=eem[0].i, o_O=self.cd_sck1.clk),
-                Instance("BUFG", i_I=eem[7].i, o_O=nu_sck),
+                Instance("BUFG", i_I=eem[2].i, o_O=nu_sck),
                 Instance("BUFG", i_I=dds_sync.clk0, o_O=sync_clk),
                 Instance("CLK_DIV2", i_CLKIN=sync_clk,
                     o_CLKDV=self.cd_sys.clk),
@@ -175,13 +175,14 @@ class Urukul(Module):
         miso = Signal(8)
         mosi = eem[1].i
         self.comb += [
-                cs.eq(Cat(eem[3].i, eem[4].i, eem[5].i)),
+                cs.eq(Cat(eem[3].i, eem[4].i, ~en_nu & eem[5].i)),
                 Array(sel)[cs].eq(1),  # one-hot
                 eem[2].o.eq(Array(miso)[cs]),
+                miso[3].eq(miso[4]),
 
-                att.clk.eq(sel[3] & self.cd_sck1.clk),
+                att.clk.eq(sel[2] & self.cd_sck1.clk),
                 att.s_in.eq(mosi),
-                miso[3].eq(att.s_out),
+                miso[2].eq(att.s_out),
 
                 sr.sel.eq(sel[1]),
                 sr.sdi.eq(mosi),
@@ -191,13 +192,14 @@ class Urukul(Module):
                 sr.do.eq(stat.data.raw_bits()),
 
                 dds_common.reset.eq(cfg.data.dds_rst | (~en_9910 &
-                    nu_sck)),  # eem[7].i
+                    eem[7].i)),
         ]
         for i, ddsi in enumerate(dds):
-            seli = sel[i + 4]
+            seli = Signal()
             nu_mosi = eem[i + 8].i
             self.comb += [
-                    ddsi.cs_n.eq(~(seli | (en_nu & eem[2].i))),
+                    seli.eq(sel[i + 4] | sel[3]),
+                    ddsi.cs_n.eq(~(seli | (en_nu & eem[5].i))),
                     ddsi.sck.eq(Mux(en_nu & ~seli, nu_sck,
                         seli & self.cd_sck1.clk)),
                     ddsi.sdi.eq(Mux(en_nu & ~seli, nu_mosi, mosi)),
@@ -213,7 +215,6 @@ class Urukul(Module):
                 tp[3].eq(sr._i),
                 tp[4].eq(sr.sel),
         ]
-
 
 
 def main():
