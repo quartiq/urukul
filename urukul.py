@@ -12,28 +12,34 @@ class SR(Module):
 
         # # #
 
+        # CPOL = 0, CPHA = 0, strictly width bits per sel cycle
+
         sr = Signal(width)
         cnt = Signal(max=width, reset=width-1)
         cnt_done = Signal()
+        self._cnt_done = cnt_done
+        i = Signal()
+        self._i = i
 
         self.comb += [
                 self.sdo.eq(sr[-1]),
                 cnt_done.eq(cnt == 0),
         ]
-        i = Signal()
         self.sync.sck1 += [
                 If(self.sel,
                     i.eq(self.sdi)
                 )
         ]
         self.sync.sck0 += [
-                If(cnt_done,
-                    cnt.eq(cnt.reset),
-                    self.di.eq(sr),
-                    sr.eq(self.do)
-                ).Elif(self.sel,
-                    sr.eq(Cat(i, sr)),
-                    cnt.eq(cnt - 1)
+                If(self.sel,
+                    If(cnt_done,
+                        self.di.eq(sr),
+                        sr.eq(self.do),
+                        cnt.eq(cnt.reset)
+                    ).Else(
+                        sr.eq(Cat(i, sr)),
+                        cnt.eq(cnt - 1)
+                    )
                 )
         ]
 
@@ -43,8 +49,6 @@ class CFG(Module):
         self.data = Record([
             ("rf_sw", n),
             ("led", n),
-            ("smp_err", n),
-            ("pll_locl", n),
 
             ("profile", 3),
 
@@ -61,11 +65,12 @@ class CFG(Module):
         dds_sync = platform.lookup_request("dds_sync")
         att = platform.lookup_request("att")
         clk = platform.lookup_request("clk")
+        ifc_mode = platform.lookup_request("ifc_mode")
+        en_9910 = ifc_mode[0]
         self.comb += [
                 dds_common.profile.eq(self.data.profile),
                 clk.in_sel.eq(self.data.clk_sel),
                 dds_sync.sync_sel.eq(self.data.sync_sel),
-                dds_common.reset.eq(self.data.dds_rst),
                 dds_common.master_reset.eq(dds_common.reset),
                 dds_common.io_reset.eq(self.data.io_rst),
                 att.rst_n.eq(~self.data.att_rst),
@@ -79,7 +84,8 @@ class CFG(Module):
                     sw.oe.eq(0),
                     dds.rf_sw.eq(sw.io ^ self.data.rf_sw[i]),
                     dds.led[0].eq(dds.rf_sw),  # green
-                    dds.led[1].eq(self.data.led[i] | dds.smp_err | ~dds.pll_lock),
+                    dds.led[1].eq(self.data.led[i] | (en_9910 & (
+                        dds.smp_err | ~dds.pll_lock))),  # red
             ]
 
 
@@ -127,15 +133,16 @@ class Top(Module):
 
         # AD9910 only
         self.clock_domains.cd_sys = ClockDomain("sys", reset_less=True)
-        self.clock_domains.cd_sck1 = ClockDomain("sck0", reset_less=True)
-        self.clock_domains.cd_sck0 = ClockDomain("sck1", reset_less=True)
+        self.clock_domains.cd_sck0 = ClockDomain("sck0", reset_less=True)
+        self.clock_domains.cd_sck1 = ClockDomain("sck1", reset_less=True)
 
-        sck1, nu_sck = Signal(), Signal()
+        nu_sck, sync_clk = Signal(), Signal()
         self.specials += [
-                Instance("CLK_DIV2", i_CLKIN=dds_sync.clk0,
-                    o_CLKDV=self.cd_sys.clk),
+                Instance("BUFG", i_I=eem[0].i, o_O=self.cd_sck1.clk),
                 Instance("BUFG", i_I=eem[7].i, o_O=nu_sck),
-                Instance("BUFG", i_I=eem[0].i, o_O=sck1),
+                Instance("BUFG", i_I=dds_sync.clk0, o_O=sync_clk),
+                Instance("CLK_DIV2", i_CLKIN=sync_clk,
+                    o_CLKDV=self.cd_sys.clk),
         ]
 
         en_9910 = Signal()  # AD9910 populated (instead of AD9912)
@@ -149,7 +156,6 @@ class Top(Module):
                 eem[2].oe.eq(~en_nu),
                 eem[10].oe.eq(~en_nu & en_eemb),
                 eem[10].o.eq(eem[6].i),
-                self.cd_sck1.clk.eq(Mux(en_nu, nu_sck, sck1)),
                 self.cd_sck0.clk.eq(~self.cd_sck1.clk),
                 dds_sync.clk_out_en.eq(~en_nu & en_eemb & en_9910),
                 dds_sync.sync_out_en.eq(~en_nu & en_eemb & en_9910),
@@ -165,36 +171,49 @@ class Top(Module):
         self.submodules += cfg, stat, sr
 
         sel = Signal(8)
+        cs = Signal(3)
+        miso = Signal(8)
+        mosi = eem[1].i
         self.comb += [
-                Array(sel)[Cat(eem[3].i, eem[4].i, eem[5].i)].eq(1),
-                att.clk.eq(sel[3] & sck1),
-                att.s_in.eq(eem[1].i),
-                If(sel[3],
-                    eem[2].o.eq(att.s_out)),
+                cs.eq(Cat(eem[3].i, eem[4].i, eem[5].i)),
+                Array(sel)[cs].eq(1),  # one-hot
+                eem[2].o.eq(Array(miso)[cs]),
+
+                att.clk.eq(sel[3] & self.cd_sck1.clk),
+                att.s_in.eq(mosi),
+                miso[3].eq(att.s_out),
 
                 sr.sel.eq(sel[1]),
-                sr.sdi.eq(eem[1].i),
-                If(sel[1],
-                    eem[2].o.eq(sr.sdo)),
+                sr.sdi.eq(mosi),
+                miso[1].eq(sr.sdo),
 
                 cfg.data.raw_bits().eq(sr.di),
-                sr.do.eq(stat.data.raw_bits())
+                sr.do.eq(stat.data.raw_bits()),
+
+                dds_common.reset.eq(cfg.data.dds_rst | (~en_9910 &
+                    nu_sck)),  # eem[7].i
         ]
-        for seli, ddsi, nu_mosi in zip(sel[4:], dds, eem[8:]):
+        for i, ddsi in enumerate(dds):
+            seli = sel[i + 4]
+            nu_mosi = eem[i + 8].i
             self.comb += [
                     ddsi.cs_n.eq(~(seli | (en_nu & eem[2].i))),
-                    ddsi.sck.eq(Mux(en_nu & ~seli, nu_sck, sck1)),
-                    ddsi.sdi.eq(Mux(en_nu & ~eem[5].i, nu_mosi.i,
-                        eem[1].i)),
-                    If(seli,
-                        eem[2].o.eq(ddsi.sdo)),
-                    ddsi.io_update.eq(eem[6].i),
+                    ddsi.sck.eq(Mux(en_nu & ~seli, nu_sck,
+                        seli & self.cd_sck1.clk)),
+                    ddsi.sdi.eq(Mux(en_nu & ~seli, nu_mosi, mosi)),
+                    miso[i + 4].eq(ddsi.sdo),
+                    ddsi.io_update.eq(eem[6].i),  # all DDS, ungated by sel
             ]
 
-        for ddsi in dds:
-            self.comb += platform.request("tp").eq(ddsi.smp_err)
-        self.comb += platform.request("tp").eq(
-                ~Cat([ddsi.pll_lock for ddsi in dds]) == 0)
+        tp = [platform.request("tp", i) for i in range(5)]
+        self.comb += [
+                tp[0].eq(Cat([ddsi.smp_err for ddsi in dds]) == 0),
+                tp[1].eq(Cat([~ddsi.pll_lock for ddsi in dds]) == 0),
+                tp[2].eq(sr._cnt_done),
+                tp[3].eq(sr._i),
+                tp[4].eq(sr.sel),
+        ]
+
 
 
 def main():

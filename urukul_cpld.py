@@ -9,7 +9,10 @@ _io = [
         ("tp", 3, Pins("P136"), IOStandard("LVCMOS33")),
         ("tp", 4, Pins("P134"), IOStandard("LVCMOS33")),
 
-        ("ifc_mode", 0, Pins("P104 P105 P110 P111"), IOStandard("LVCMOS33")),
+        ("ifc_mode", 0,
+            Pins("P104 P105 P110 P111"),
+            IOStandard("LVCMOS33"),
+            Misc("PULLUP")),
 
         ("clk", 0,
             Subsignal("div", Pins("P11")),
