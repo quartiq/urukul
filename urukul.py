@@ -7,7 +7,8 @@ class SR(Module):
         self.sdo = Signal()
         self.sel = Signal()
 
-        self.data = Signal(width)
+        self.di = Signal(width)
+        self.do = Signal(width)
 
         # # #
 
@@ -28,7 +29,8 @@ class SR(Module):
         self.sync.sck0 += [
                 If(cnt_done,
                     cnt.eq(cnt.reset),
-                    self.data.eq(sr),
+                    self.di.eq(sr),
+                    sr.eq(self.do)
                 ).Elif(self.sel,
                     sr.eq(Cat(i, sr)),
                     cnt.eq(cnt - 1)
@@ -38,9 +40,12 @@ class SR(Module):
 
 class CFG(Module):
     def __init__(self, platform, n=4):
-        self.cfg = Record([
+        self.data = Record([
             ("rf_sw", n),
             ("led", n),
+            ("smp_err", n),
+            ("pll_locl", n),
+
             ("profile", 3),
 
             ("att_le", 1),
@@ -57,14 +62,14 @@ class CFG(Module):
         att = platform.lookup_request("att")
         clk = platform.lookup_request("clk")
         self.comb += [
-                dds_common.profile.eq(self.cfg.profile),
-                clk.in_sel.eq(self.cfg.clk_sel),
-                dds_sync.sync_sel.eq(self.cfg.sync_sel),
-                dds_common.reset.eq(self.cfg.dds_rst),
+                dds_common.profile.eq(self.data.profile),
+                clk.in_sel.eq(self.data.clk_sel),
+                dds_sync.sync_sel.eq(self.data.sync_sel),
+                dds_common.reset.eq(self.data.dds_rst),
                 dds_common.master_reset.eq(dds_common.reset),
-                dds_common.io_reset.eq(self.cfg.io_rst),
-                att.rst_n.eq(~self.cfg.att_rst),
-                att.le.eq(self.cfg.att_le),
+                dds_common.io_reset.eq(self.data.io_rst),
+                att.rst_n.eq(~self.data.att_rst),
+                att.le.eq(self.data.att_le),
         ]
 
         for i in range(n):
@@ -72,9 +77,29 @@ class CFG(Module):
             dds = platform.lookup_request("dds", i)
             self.comb += [
                     sw.oe.eq(0),
-                    dds.rf_sw.eq(sw.io ^ self.cfg.rf_sw[i]),
+                    dds.rf_sw.eq(sw.io ^ self.data.rf_sw[i]),
                     dds.led[0].eq(dds.rf_sw),  # green
-                    dds.led[1].eq(self.cfg.led[i] | dds.smp_err | ~dds.pll_lock),
+                    dds.led[1].eq(self.data.led[i] | dds.smp_err | ~dds.pll_lock),
+            ]
+
+
+class Status(Module):
+    def __init__(self, platform, n=4):
+        self.data = Record([
+            ("rf_sw", n),
+            ("smp_err", n),
+            ("pll_lock", n),
+            ("ifc_mode", 4),
+        ])
+        self.comb += [
+                self.data.ifc_mode.eq(platform.lookup_request("ifc_mode"))
+        ]
+        for i in range(n):
+            dds = platform.lookup_request("dds", i)
+            self.comb += [
+                    self.data.rf_sw[i].eq(dds.rf_sw),
+                    self.data.smp_err[i].eq(dds.smp_err),
+                    self.data.pll_lock[i].eq(dds.pll_lock),
             ]
 
 
@@ -135,8 +160,9 @@ class Top(Module):
         ]
 
         cfg = CFG(platform)
-        sr = SR(len(cfg.cfg))
-        self.submodules += cfg, sr
+        stat = Status(platform)
+        sr = SR(max(len(cfg.data), len(stat.data)))
+        self.submodules += cfg, stat, sr
 
         sel = Signal(8)
         self.comb += [
@@ -151,7 +177,8 @@ class Top(Module):
                 If(sel[1],
                     eem[2].o.eq(sr.sdo)),
 
-                cfg.cfg.raw_bits().eq(sr.data)
+                cfg.data.raw_bits().eq(sr.di),
+                sr.do.eq(stat.data.raw_bits())
         ]
         for seli, ddsi, nu_mosi in zip(sel[4:], dds, eem[8:]):
             self.comb += [
