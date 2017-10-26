@@ -15,7 +15,7 @@ _io = [
             Misc("PULLUP")),
 
         ("clk", 0,
-            Subsignal("div", Pins("P11")),
+            Subsignal("div", Pins("P11"), Misc("FLOAT")),
             Subsignal("in_sel", Pins("P12")),
             IOStandard("LVCMOS33")),
 
@@ -35,7 +35,8 @@ _io = [
             IOStandard("LVCMOS33")),
 
         ("dds_sync", 0,
-            Subsignal("clk0", Pins("P38"), Misc("PULLUP")),  # DDS_SYNC_CLK0
+            Subsignal("clk0", Pins("P38"),
+                Misc("PULLUP"), Misc("FLOAT")),  # DDS_SYNC_CLK0
             Subsignal("clk_out_en", Pins("P86")),  # DDS_SYNC_CLK_OUTEN
             Subsignal("sync_sel", Pins("P60")),  # DDS_SYNC_CLKSEL
             Subsignal("sync_out_en", Pins("P92")),  # DDS_SYNC_OUTEN
@@ -160,4 +161,4 @@ class Platform(XilinxPlatform):
     def __init__(self):
         XilinxPlatform.__init__(self, "xc2c128-6-tq144", _io)
         self.toolchain.xst_opt = "-ifmt MIXED"
-        self.toolchain.par_opt = "-optimize speed"
+        self.toolchain.par_opt = "-optimize speed -unused pullup"
