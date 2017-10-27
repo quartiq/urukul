@@ -54,8 +54,12 @@ class CFG(Module):
 
             ("att_le", 1),
 
+            ("mask_nu", 4),
+
             ("clk_sel", 1),
             ("sync_sel", 1),
+
+            ("io_update", 1),
 
             ("rst", 1),
             ("io_rst", 1),
@@ -167,7 +171,9 @@ class Urukul(Module):
 
         cfg = CFG(platform)
         stat = Status(platform)
-        sr = SR(max(len(cfg.data), len(stat.data)))
+        sr = SR(24)
+        assert len(cfg.data) <= len(sr.di)
+        assert len(stat.data) <= len(sr.do)
         self.submodules += cfg, stat, sr
 
         sel = Signal(8)
@@ -178,7 +184,7 @@ class Urukul(Module):
                 cs.eq(Cat(eem[3].i, eem[4].i, ~en_nu & eem[5].i)),
                 Array(sel)[cs].eq(1),  # one-hot
                 eem[2].o.eq(Array(miso)[cs]),
-                miso[3].eq(miso[4]),
+                miso[3].eq(miso[4]),  # for all-DDS take DDS0:MISO
 
                 att.clk.eq(sel[2] & self.cd_sck1.clk),
                 att.s_in.eq(mosi),
@@ -197,14 +203,16 @@ class Urukul(Module):
         for i, ddsi in enumerate(dds):
             seli = Signal()
             nu_mosi = eem[i + 8].i
+            en_nu_i = Signal()
             self.comb += [
-                    seli.eq(sel[i + 4] | sel[3]),
-                    ddsi.cs_n.eq(~(seli | (en_nu & eem[5].i))),
-                    ddsi.sck.eq(Mux(en_nu & ~seli, nu_sck,
-                        seli & self.cd_sck1.clk)),
-                    ddsi.sdi.eq(Mux(en_nu & ~seli, nu_mosi, mosi)),
+                    seli.eq(sel[i + 4] | (sel[3] & cfg.data.mask_nu[i])),
+                    en_nu_i.eq(~seli & (en_nu & ~cfg.data.mask_nu[i])),
+                    ddsi.cs_n.eq(~(seli | (en_nu_i & eem[5].i))),
+                    ddsi.sck.eq(Mux(en_nu_i, nu_sck, self.cd_sck1.clk)),
+                    ddsi.sdi.eq(Mux(en_nu_i, nu_mosi, mosi)),
                     miso[i + 4].eq(ddsi.sdo),
-                    ddsi.io_update.eq(eem[6].i),  # all DDS, ungated by sel
+                    ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
+                        cfg.data.io_update, eem[6].i)),
             ]
 
         tp = [platform.request("tp", i) for i in range(5)]
