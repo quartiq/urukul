@@ -130,6 +130,7 @@ class Urukul(Module):
         for i in range(12):
             tsi = TSTriple()
             eemi = platform.request("eem", i)
+            tsi._pin = eemi.io
             self.specials += tsi.get_tristate(eemi.io)
             self.comb += eemi.oe.eq(tsi.oe)
             eem.append(tsi)
@@ -138,6 +139,9 @@ class Urukul(Module):
         self.clock_domains.cd_sys = ClockDomain("sys", reset_less=True)
         self.clock_domains.cd_sck0 = ClockDomain("sck0", reset_less=True)
         self.clock_domains.cd_sck1 = ClockDomain("sck1", reset_less=True)
+
+        platform.add_period_constraint(eem[0]._pin, 8.)
+        platform.add_period_constraint(eem[2]._pin, 8.)
 
         nu_sck = Signal()
         sync_clk = Signal()
