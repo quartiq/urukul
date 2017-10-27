@@ -1,6 +1,10 @@
 from migen import *
 
 
+# increment this if the behavior changes
+__proto_rev__ = 4
+
+
 class SR(Module):
     def __init__(self, width):
         self.sdi = Signal()
@@ -100,9 +104,11 @@ class Status(Module):
             ("smp_err", n),
             ("pll_lock", n),
             ("ifc_mode", 4),
+            ("proto_rev", 8)
         ])
         self.comb += [
-                self.data.ifc_mode.eq(platform.lookup_request("ifc_mode"))
+                self.data.ifc_mode.eq(platform.lookup_request("ifc_mode")),
+                self.data.proto_rev.eq(__proto_rev__)
         ]
         for i in range(n):
             dds = platform.lookup_request("dds", i)
