@@ -33,13 +33,15 @@ class SR(Module):
         self.sync.sck0 += [
                 If(self.sel,
                     If(cnt_done,
-                        self.di.eq(sr),
+                        self.di.eq(Cat(i, sr)),
                         sr.eq(self.do),
                         cnt.eq(cnt.reset)
                     ).Else(
                         sr.eq(Cat(i, sr)),
                         cnt.eq(cnt - 1)
                     )
+                ).Else(
+                    cnt.eq(cnt.reset)
                 )
         ]
 
@@ -53,13 +55,12 @@ class CFG(Module):
             ("profile", 3),
 
             ("att_le", 1),
+            ("io_update", 1),
 
             ("mask_nu", 4),
 
             ("clk_sel", 1),
             ("sync_sel", 1),
-
-            ("io_update", 1),
 
             ("rst", 1),
             ("io_rst", 1),
@@ -85,7 +86,7 @@ class CFG(Module):
             dds = platform.lookup_request("dds", i)
             self.comb += [
                     sw.oe.eq(0),
-                    dds.rf_sw.eq(sw.io ^ self.data.rf_sw[i]),
+                    dds.rf_sw.eq(sw.io | self.data.rf_sw[i]),
                     dds.led[0].eq(dds.rf_sw),  # green
                     dds.led[1].eq(self.data.led[i] | (en_9910 & (
                         dds.smp_err | ~dds.pll_lock))),  # red
@@ -155,7 +156,7 @@ class Urukul(Module):
 
         en_9910 = Signal()  # AD9910 populated (instead of AD9912)
         en_nu = Signal()  # NU-Servo operation with quad SPI
-        en_eemb = Signal()  # EEM-B connected
+        en_eemb = Signal()  # EEM-B connected and used
         en_unused = Signal()
         self.comb += Cat(en_9910, en_nu, en_eemb, en_unused).eq(ifc_mode)
 
@@ -205,15 +206,15 @@ class Urukul(Module):
                     (~en_9910 & eem[7].i)),
         ]
         for i, ddsi in enumerate(dds):
-            seli = Signal()
+            sel_spi = Signal()
             nu_mosi = eem[i + 8].i
-            en_nu_i = Signal()
+            sel_nu = Signal()
             self.comb += [
-                    seli.eq(sel[i + 4] | (sel[3] & cfg.data.mask_nu[i])),
-                    en_nu_i.eq(~seli & (en_nu & ~cfg.data.mask_nu[i])),
-                    ddsi.cs_n.eq(~(seli | (en_nu_i & eem[5].i))),
-                    ddsi.sck.eq(Mux(en_nu_i, nu_sck, self.cd_sck1.clk)),
-                    ddsi.sdi.eq(Mux(en_nu_i, nu_mosi, mosi)),
+                    sel_spi.eq(sel[i + 4] | (sel[3] & cfg.data.mask_nu[i])),
+                    sel_nu.eq(~sel_spi & (en_nu & ~cfg.data.mask_nu[i])),
+                    ddsi.cs_n.eq(~(sel_spi | (sel_nu & eem[5].i))),
+                    ddsi.sck.eq(Mux(sel_nu, nu_sck, sel_spi & self.cd_sck1.clk)),
+                    ddsi.sdi.eq(Mux(sel_nu, nu_mosi, mosi)),
                     miso[i + 4].eq(ddsi.sdo),
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
                         cfg.data.io_update, eem[6].i)),
@@ -229,12 +230,4 @@ class Urukul(Module):
         ]
 
 
-def main():
-    from urukul_cpld import Platform
-    p = Platform()
-    urukul = Urukul(p)
-    p.build(urukul, build_name="urukul", mode="cpld")
 
-
-if __name__ == "__main__":
-    main()
