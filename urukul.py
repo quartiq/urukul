@@ -4,8 +4,208 @@ from migen import *
 # increment this if the behavior changes
 __proto_rev__ = 4
 
+"""
+Urukul IO router and configuration/status
+=========================================
+
+Pin Out
+-------
+
+EEM connector, EEM connector LVDS pair index, schematics/PCB name, function
+
+EEMA | 0 | A0 | SCLK
+EEMA | 1 | A1 | MOSI
+EEMA | 2 | A2 | MISO/NU_CLK
+EEMA | 3 | A3 | CS0
+EEMA | 4 | A4 | CS1
+EEMA | 5 | A5 | CS2/NU_CS
+EEMA | 6 | A6 | IO_UPDATE
+EEMA | 7 | A7 | DDS_RESET/SYNC_OUT
+EEMB | 0 | B8 | SYNC_CLK/NU_MOSI0
+EEMB | 1 | B9 | SYNC_IN/NU_MOSI1
+EEMB | 2 | B10 | IO_UPDATE_RET/NU_MOSI2
+EEMB | 3 | B11 | NU_MOSI3
+EEMB | 4 | B12 | SW0
+EEMB | 5 | B13 | SW1
+EEMB | 6 | B14 | SW3
+EEMB | 7 | B15 | SW4
+
+
+IFC_MODE
+--------
+
+The four IFC mode switches are assigned as:
+
+IFC_MODE | 0 | EN_9910 | On if AD9910 is populated
+IFC_MODE | 1 | EN_NU | On if NU-Servo mode is used
+IFC_MODE | 2 | EN_EEMB | On if the signals on EEMB should be driven/used
+IFC_MODE | 3 | UNUSED | Unused switch
+
+
+SPI
+---
+
+An SPI interface is provided to access any of the six serial devices (the
+configuration/status SPI interface, the attenuator SPI interface,
+the four DDS SPI interfaces). It comprises the SCLK, MOSI, MISO, CS0, CS1,
+CS2 signal. With EN_NU, MISO and CS2 (and the functionality provided by them)
+is unavailable.
+
+The target chip (or set of chips) is selected by CS0/CS1/CS2 (CS2 being the
+MSB). The encoding is as follows:
+
+CS      | chip
+======= | ====
+0=0b000 | None
+1=0b001 | CFG
+2=0b010 | ATT
+3=0b011 | Multiple DDS (those masked by CFG.MASK_NU)
+4=0b100 | DDS0
+5=0b101 | DDS1
+6=0b110 | DDS2
+7=0b111 | DDS3
+
+The SPI interface is CPOL=0, CPHA=0, SPI mode 0, 4 wire. Clock cycles during
+CS[0:2] = 0 are ignored.
+
+CFG
+---
+
+The configuration status register controls the overall operation of Urukul,
+allows some configuration options to be changed and the status of some signals
+to be monitored.
+
+It is 24 bits wide, MSB first.
+
+CFG write
+.........
+
+The configuration register is updated at last falling SCK edge of the SPI
+transaction.
+The bits in the configuration register (from LSB to MSB) are:
+
+Name      | Width | Function
+========= | ===== | ========
+RF_SW     | 4     | Activates RF switch per channel
+LED       | 4     | Activates the red LED per channel
+PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]
+ATT_LE    | 1     | Asserts ATT[0:3].ATT_LE
+IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU is high
+MASK_NU   | 4     | Disables DDS from QSPI interface, disables IO_UPDATE
+                    control through IO_UPDATE EEM signal, enables access through
+                    CS=3, enables control of IO_UPDATE through CFG.IO_UPDATE
+CLK_SEL   | 1     | Selects CLK source
+SYNC_SEL  | 1     | Selects SYNC source
+RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET, ATT[0:3].RST
+IO_RST    | 1     | Asserts DDS[0:3].IO_RESET
+
+CFG read
+........
+
+Name      | Width | Function
+========= | ===== | ========
+RF_SW     | 4     | Actual RF switch and green LED activation (including that
+                    by EEMB.SW[0:3])
+SMP_ERR   | 4     | DDS[0:3].SMP_ERR
+PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK
+IFC_MODE  | 4     | IFC_MODE[0:3]
+PROTO_REV | 8     | Protocol revision (see __proto_rev__)
+
+The status data is loaded into the CFG shift register at the last (24th)
+falling SCK edge. Consequently the data read refers to the status at the end of
+the previous CFG SPI transaction.
+
+QSPI
+----
+
+If EN_NU is activated, the four DDS are additionally exposed through a
+quad-SPI write-only interface defined by the signals NU_CLK, NU_CS, and
+NU_MOSI[0:3].
+
+Only those DDS which are not masked by CFG.MASK_NU can be accessed through the
+QSPI interface. This allows initial setup and configuration of the DDS
+individually through the "regular" SPI interface in EN_NU mode.
+
+DDS[0:3].CS is driven by NU_CS (for those DDS not masked)
+DDS[0:3].SCK is driven by NU_CLK (for those DDS not masked)
+DDS[0:3].MOSI is driven by NU_MOSI[0:3] (for those DDS not masked)
+DDS[0:3].MISO is unavailable
+DDS[0:3].IO_UPDATE is driven by IO_UPDATE (for those DDS not masked)
+
+ATT
+---
+
+The digital step attenuators are daisy-chained (ATT.S_OUT driving the next
+ATT.S_IN) and form a 32 bit SPI compatible shift register. The data from the
+shift register is transferred to the active attenuation register on the rising
+edge of CFG.ATT_LE.
+
+
+Clocking
+--------
+
+CFG.CLK_SEL selects the clock source for the clock fanout to the DDS.
+
+When EN_9910 is on, the clock to the DDS (from the XCO, the internal MMCX or
+the external SMA) is divided by 4.
+
+
+Synchronization
+---------------
+
+DDS_RESET (not EN_9910) and SYNC_OUT (EN_9910) share an EEM signal.
+DDS_RESET provides a way to deterministically reset all AD9912 DDS SYNC_CLK
+divider. SYNC_OUT is an input to the SYNC_CLK fanout to externally and
+actively synchronize the AD9910 SYNC_CLK dividers.
+
+SYNC_CLK and SYNC_IN are available with EN_9910 to synchronize external logic
+to the DDS. A round-trip time measurement using IO_UPDATE_RET would need to be
+performed.
+
+IO_UPDATE_RET is provided to determine the round trip time for IO_UPDATE.
+
+
+RF switches
+-----------
+
+The RF switches are activated with CFG.RF_SW or (logic OR) SW[0:3].
+
+LEDs
+----
+
+The green channel LEDs mirror the status of the RF switches.
+The red LEDs are activated by ``CFG.LED | (EN_9910 & (DDS[0:3].SMP_ERR |
+~DDS[0:3].PLL_LOCK))``. I.e. they are lit by the register or an
+synchronization/PLL error on that channel's DDS.
+
+Test points
+-----------
+
+The test points expose miscellaneous signals for debugging and are not part
+of the protocol revision.
+"""
+
 
 class SR(Module):
+    """
+    Shift register, SPI slave
+
+    * CPOL = 0 (clock idle low during ~SEL)
+    * CPHA = 0 (sample on first edge, shift on second)
+    * SPI mode 0
+    * samples SDI on rising clock edges (SCK1 domain)
+    * shifts out SDO on falling clock edges (SCK0 domain)
+    * MSB first
+    * strictly ``width`` bits per SEL cycle
+    * the first output bit is available from the start of the SEL cycle until
+      the first falling edge
+    * the first bit is sampled on the first rising edge
+    * after ``width`` bits have been transferred, i.e. on the last
+      falling edge of the transfer, the DI register is updated with the
+      contents of the shift register (just shifted in from the master)
+    * at the same time the shift register is updated with the contents of the
+      DO register to be output during the **next** SEL cycle
+    """
     def __init__(self, width):
         self.sdi = Signal()
         self.sdo = Signal()
@@ -15,8 +215,6 @@ class SR(Module):
         self.do = Signal(width)
 
         # # #
-
-        # CPOL = 0, CPHA = 0, strictly width bits per sel cycle
 
         sr = Signal(width)
         cnt = Signal(max=width, reset=width-1)
@@ -51,6 +249,7 @@ class SR(Module):
 
 
 class CFG(Module):
+    """Configuration register"""
     def __init__(self, platform, n=4):
         self.data = Record([
             ("rf_sw", n),
@@ -98,6 +297,7 @@ class CFG(Module):
 
 
 class Status(Module):
+    """Status register"""
     def __init__(self, platform, n=4):
         self.data = Record([
             ("rf_sw", n),
@@ -120,6 +320,21 @@ class Status(Module):
 
 
 class Urukul(Module):
+    """Urukul CPLD logic router
+
+    The CPLD controls/monitors
+
+    * the four AD9912 or AD9910 DDS (SPI, status, reset, IO update)
+    * the four digitally controlled RF step attenuators (SPI, ATT_LE, reset)
+    * the four RF switches
+    * the clock input tree (division and clock selection)
+    * the synchronization tree (sync source selection, sync clock output,
+      sync drive)
+    * the eight LEDs
+    * the two EEM connectors
+    * the test pads
+    * the four configuration switches
+    """
     def __init__(self, platform):
         clk = platform.request("clk")
         dds_sync = platform.request("dds_sync")
@@ -234,6 +449,3 @@ class Urukul(Module):
                 tp[3].eq(sr._i),
                 tp[4].eq(sr.sel),
         ]
-
-
-
