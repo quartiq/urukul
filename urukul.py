@@ -13,22 +13,22 @@ Pin Out
 
 EEM connector, EEM connector LVDS pair index, schematics/PCB name, function
 
-EEMA | 0 | A0 | SCLK
-EEMA | 1 | A1 | MOSI
-EEMA | 2 | A2 | MISO/NU_CLK
-EEMA | 3 | A3 | CS0
-EEMA | 4 | A4 | CS1
-EEMA | 5 | A5 | CS2/NU_CS
-EEMA | 6 | A6 | IO_UPDATE
-EEMA | 7 | A7 | DDS_RESET/SYNC_OUT
-EEMB | 0 | B8 | SYNC_CLK/NU_MOSI0
-EEMB | 1 | B9 | SYNC_IN/NU_MOSI1
-EEMB | 2 | B10 | IO_UPDATE_RET/NU_MOSI2
-EEMB | 3 | B11 | NU_MOSI3
-EEMB | 4 | B12 | SW0
-EEMB | 5 | B13 | SW1
-EEMB | 6 | B14 | SW3
-EEMB | 7 | B15 | SW4
+EEM0 | 0 | A0 | SCLK
+EEM0 | 1 | A1 | MOSI
+EEM0 | 2 | A2 | MISO/NU_CLK
+EEM0 | 3 | A3 | CS0
+EEM0 | 4 | A4 | CS1
+EEM0 | 5 | A5 | CS2/NU_CS
+EEM0 | 6 | A6 | IO_UPDATE
+EEM0 | 7 | A7 | DDS_RESET/SYNC_OUT
+EEM1 | 0 | B8 | SYNC_CLK/NU_MOSI0
+EEM1 | 1 | B9 | SYNC_IN/NU_MOSI1
+EEM1 | 2 | B10 | IO_UPDATE_RET/NU_MOSI2
+EEM1 | 3 | B11 | NU_MOSI3
+EEM1 | 4 | B12 | SW0
+EEM1 | 5 | B13 | SW1
+EEM1 | 6 | B14 | SW3
+EEM1 | 7 | B15 | SW4
 
 
 IFC_MODE
@@ -38,7 +38,7 @@ The four IFC mode switches are assigned as:
 
 IFC_MODE | 0 | EN_9910 | On if AD9910 is populated
 IFC_MODE | 1 | EN_NU | On if NU-Servo mode is used
-IFC_MODE | 2 | EN_EEMB | On if the signals on EEMB should be driven/used
+IFC_MODE | 2 | EN_EEM1 | On if the signals on EEM1 should be driven/used
 IFC_MODE | 3 | UNUSED | Unused switch
 
 
@@ -105,7 +105,7 @@ CFG read
 Name      | Width | Function
 ========= | ===== | ========
 RF_SW     | 4     | Actual RF switch and green LED activation (including that
-                    by EEMB.SW[0:3])
+                    by EEM1.SW[0:3])
 SMP_ERR   | 4     | DDS[0:3].SMP_ERR
 PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK
 IFC_MODE  | 4     | IFC_MODE[0:3]
