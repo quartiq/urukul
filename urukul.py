@@ -38,7 +38,7 @@ The four IFC mode switches are assigned as:
 
 IFC_MODE | 0 | EN_9910 | On if AD9910 is populated
 IFC_MODE | 1 | EN_NU | On if NU-Servo mode is used
-IFC_MODE | 2 | EN_EEM1 | On if the signals on EEM1 should be driven/used
+IFC_MODE | 2 | EN_EEM1 | On if the SYNC signals on EEM1 should be driven
 IFC_MODE | 3 | UNUSED | Unused switch
 
 
@@ -377,18 +377,18 @@ class Urukul(Module):
 
         en_9910 = Signal()  # AD9910 populated (instead of AD9912)
         en_nu = Signal()  # NU-Servo operation with quad SPI
-        en_eemb = Signal()  # EEM-B connected and used
+        en_eem1 = Signal()  # EEM1 connected and sync outputs used
         en_unused = Signal()
-        self.comb += Cat(en_9910, en_nu, en_eemb, en_unused).eq(ifc_mode)
+        self.comb += Cat(en_9910, en_nu, en_eem1, en_unused).eq(ifc_mode)
 
         self.comb += [
                 [eem[i].oe.eq(0) for i in range(12) if i not in (2, 10)],
                 eem[2].oe.eq(~en_nu),
-                eem[10].oe.eq(~en_nu & en_eemb),
+                eem[10].oe.eq(~en_nu & en_eem1),
                 eem[10].o.eq(eem[6].i),
                 self.cd_sck0.clk.eq(~self.cd_sck1.clk),
-                dds_sync.clk_out_en.eq(~en_nu & en_eemb & en_9910),
-                dds_sync.sync_out_en.eq(~en_nu & en_eemb & en_9910),
+                dds_sync.clk_out_en.eq(~en_nu & en_eem1 & en_9910),
+                dds_sync.sync_out_en.eq(~en_nu & en_eem1 & en_9910),
                 # 1: div-by-4 for AD9910
                 # z: div-by-1 for AD9912
                 ts_clk_div.oe.eq(~en_9910),
