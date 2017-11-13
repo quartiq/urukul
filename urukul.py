@@ -155,12 +155,17 @@ Synchronization
 
 DDS_RESET (not EN_9910) and SYNC_OUT (EN_9910) share an EEM signal.
 DDS_RESET provides a way to deterministically reset all AD9912 DDS SYNC_CLK
-divider. SYNC_OUT is an input to the SYNC_CLK fanout to externally and
-actively synchronize the AD9910 SYNC_CLK dividers.
+divider. (https://ez.analog.com/docs/DOC-14472)
+
+SYNC_OUT is an input to the SYNC fanout (input to Urukul) to externally
+and actively synchronize the AD9910 SYNC_CLK dividers. The SYNC fanout can
+be driven using either EEM1.SYNC_OUT or DDS0.SYNC_OUT (selected by
+CFG.CLK_SEL).
 
 SYNC_CLK and SYNC_IN are available with EN_9910 to synchronize external logic
 to the DDS. A round-trip time measurement using IO_UPDATE_RET would need to be
-performed.
+performed. SYNC_IN is an output from Urukul and an input to the controlling
+FPGA and an input to all DDS.
 
 IO_UPDATE_RET is provided to determine the round trip time for IO_UPDATE.
 
