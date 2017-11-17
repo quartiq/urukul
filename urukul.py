@@ -11,6 +11,11 @@ Urukul IO router and configuration/status
 Pin Out
 -------
 
+Urukul operates from one or two EEM connectors.
+NU-Servo mode requires two EEM connectors while standard SPI mode only needs
+the second EEM connector to provide high resolution RF switching and
+synchronization signals.
+
 EEM connector, EEM connector LVDS pair index, schematics/PCB name, function
 
 EEM0 | 0 | A0 | SCLK
