@@ -433,19 +433,17 @@ class Urukul(Module):
                 cfg.data.raw_bits().eq(sr.di),
                 sr.do.eq(stat.data.raw_bits()),
 
-                dds_common.reset.eq(cfg.data.rst |
-                    (~en_9910 & eem[7].i)),
+                dds_common.reset.eq(cfg.data.rst | (~en_9910 & eem[7].i)),
         ]
         for i, ddsi in enumerate(dds):
             sel_spi = Signal()
-            nu_mosi = eem[i + 8].i
             sel_nu = Signal()
             self.comb += [
                     sel_spi.eq(sel[i + 4] | (sel[3] & cfg.data.mask_nu[i])),
-                    sel_nu.eq(~sel_spi & (en_nu & ~cfg.data.mask_nu[i])),
-                    ddsi.cs_n.eq(~(sel_spi | (sel_nu & eem[5].i))),
-                    ddsi.sck.eq(Mux(sel_nu, nu_sck, sel_spi & self.cd_sck1.clk)),
-                    ddsi.sdi.eq(Mux(sel_nu, nu_mosi, mosi)),
+                    sel_nu.eq(en_nu & ~cfg.data.mask_nu[i]),
+                    ddsi.cs_n.eq(~Mux(sel_nu, eem[5].i, sel_spi)),
+                    ddsi.sck.eq(Mux(sel_nu, nu_sck, self.cd_sck1.clk)),
+                    ddsi.sdi.eq(Mux(sel_nu, eem[i + 8].i, mosi)),
                     miso[i + 4].eq(ddsi.sdo),
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
                         cfg.data.io_update, eem[6].i)),
