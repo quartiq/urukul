@@ -379,7 +379,7 @@ class Urukul(Module):
                 ts_clk_div.get_tristate(clk.div)
         ]
 
-        eem = []
+        self.eem = eem = []
         for i in range(12):
             tsi = TSTriple()
             eemi = platform.request("eem", i)

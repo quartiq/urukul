@@ -63,11 +63,14 @@ class TB(Module):
             yield self.eem[0].io.eq(0)
             yield
             yield self.eem[0].io.eq(1)
-            miso = (miso << 1) | (yield self.eem[2].io)
+            # miso = (miso << 1) | (yield self.eem[2].io)
+            miso = (miso << 1) | (yield self.dut.eem[2].o)
             yield
             yield self.eem[0].io.eq(0)
         yield
         yield self.cs.eq(0)
+        yield
+        yield
         yield
         return miso
 
@@ -82,8 +85,26 @@ class TB(Module):
         yield self.dds[0].pll_lock.eq(1)
         yield
         yield from self.spi(1, 24, 0x123456)
+        for i in range(4):
+            sw = yield self.dds[i].rf_sw
+            assert sw == ((0x6 | 1) >> i) & 1, (i, sw)
+            led = yield self.dds[i].led[1]
+            assert led == ((0x5 | 0xe | 0x2) >> i) & 1, (i, led)
+        profile = yield self.dds_common.profile
+        assert profile == 0x4
+        att_le = yield self.att.le
+        assert att_le == 0
+
+        ret = yield from self.spi(1, 24, 0x123456)
+        assert ret & 0xf == 1, hex(ret)
+        assert ret & 0xff0000 == 0x050000
+        ret = yield from self.spi(1, 24, 0x123456)
+        assert ret & 0xf == 0x6 | 1, hex(ret)
+        assert ret & 0xff0000 == 0x050000
+
         yield from self.spi(2, 32, 0xf0f0f0f0)  # ATT
         yield from self.spi(4, 16, 0x1234)
+        yield from self.spi(3, 8 + 64, 0x12345678abcdef0123)
         yield
 
 
