@@ -12,28 +12,30 @@ Pin Out
 -------
 
 Urukul operates from one or two EEM connectors.
-NU-Servo mode requires two EEM connectors while standard SPI mode only needs
-the second EEM connector to provide high resolution RF switching and
-synchronization signals.
+NU-Servo mode requires two EEM connectors.
+Standard SPI mode only needs the second EEM connector to interface with
+high resolution RF switching and synchronization signals.
+The complete Urukul functionality can be accessed controlled using only the
+Standard SPI interface.
 
-EEM connector, EEM connector LVDS pair index, schematics/PCB name, function
-
-EEM0 | 0 | A0 | SCLK
-EEM0 | 1 | A1 | MOSI
-EEM0 | 2 | A2 | MISO/NU_CLK
-EEM0 | 3 | A3 | CS0
-EEM0 | 4 | A4 | CS1
-EEM0 | 5 | A5 | CS2/NU_CS
-EEM0 | 6 | A6 | IO_UPDATE
-EEM0 | 7 | A7 | DDS_RESET/SYNC_OUT
-EEM1 | 0 | B8 | SYNC_CLK/NU_MOSI0
-EEM1 | 1 | B9 | SYNC_IN/NU_MOSI1
-EEM1 | 2 | B10 | IO_UPDATE_RET/NU_MOSI2
-EEM1 | 3 | B11 | NU_MOSI3
-EEM1 | 4 | B12 | SW0
-EEM1 | 5 | B13 | SW1
-EEM1 | 6 | B14 | SW3
-EEM1 | 7 | B15 | SW4
+| EEM  | LVDS index | PCB net | function               |
+|------+------------+---------+------------------------|
+| EEM0 | 0          | A0      | SCLK                   |
+| EEM0 | 1          | A1      | MOSI                   |
+| EEM0 | 2          | A2      | MISO/NU_CLK            |
+| EEM0 | 3          | A3      | CS0                    |
+| EEM0 | 4          | A4      | CS1                    |
+| EEM0 | 5          | A5      | CS2/NU_CS              |
+| EEM0 | 6          | A6      | IO_UPDATE              |
+| EEM0 | 7          | A7      | DDS_RESET/SYNC_OUT     |
+| EEM1 | 0          | B8      | SYNC_CLK/NU_MOSI0      |
+| EEM1 | 1          | B9      | SYNC_IN/NU_MOSI1       |
+| EEM1 | 2          | B10     | IO_UPDATE_RET/NU_MOSI2 |
+| EEM1 | 3          | B11     | NU_MOSI3               |
+| EEM1 | 4          | B12     | SW0                    |
+| EEM1 | 5          | B13     | SW1                    |
+| EEM1 | 6          | B14     | SW3                    |
+| EEM1 | 7          | B15     | SW4                    |
 
 
 IFC_MODE
@@ -41,11 +43,14 @@ IFC_MODE
 
 The four IFC mode switches are assigned as:
 
-IFC_MODE | 0 | EN_9910 | On if AD9910 is populated
-IFC_MODE | 1 | EN_NU | On if NU-Servo mode is used
-IFC_MODE | 2 | EN_EEM1 | On if the SYNC signals on EEM1 should be driven
-IFC_MODE | 3 | UNUSED | Unused switch
+| IFC_MODE | name    | function                                        |
+|----------+---------+-------------------------------------------------|
+| 0        | EN_9910 | On if AD9910 is populated                       |
+| 1        | EN_NU   | On if NU-Servo mode is used                     |
+| 2        | EN_EEM1 | On if the SYNC signals on EEM1 should be driven |
+| 3        | UNUSED  | Unused switch                                   |
 
+See :class:`Urukul`
 
 SPI
 ---
@@ -54,24 +59,27 @@ An SPI interface is provided to access any of the six serial devices (the
 configuration/status SPI interface, the attenuator SPI interface,
 the four DDS SPI interfaces). It comprises the SCLK, MOSI, MISO, CS0, CS1,
 CS2 signal. With EN_NU, MISO and CS2 (and the functionality provided by them)
-is unavailable.
+is unavailable. Since CS2 is unavailable in EN_NU, CS >= 4 (the individual
+DDS) are only available outside of EN_NU or through CS = 3 (and CFG.MASK_NU).
 
 The target chip (or set of chips) is selected by CS0/CS1/CS2 (CS2 being the
 MSB). The encoding is as follows:
 
-CS      | chip
-======= | ====
-0=0b000 | None
-1=0b001 | CFG
-2=0b010 | ATT
-3=0b011 | Multiple DDS (those masked by CFG.MASK_NU)
-4=0b100 | DDS0
-5=0b101 | DDS1
-6=0b110 | DDS2
-7=0b111 | DDS3
+| CS      | chip                                       |
+|---------+--------------------------------------------|
+| 0=0b000 | None                                       |
+| 1=0b001 | CFG                                        |
+| 2=0b010 | ATT                                        |
+| 3=0b011 | Multiple DDS (those masked by CFG.MASK_NU) |
+| 4=0b100 | DDS0                                       |
+| 5=0b101 | DDS1                                       |
+| 6=0b110 | DDS2                                       |
+| 7=0b111 | DDS3                                       |
 
 The SPI interface is CPOL=0, CPHA=0, SPI mode 0, 4 wire. Clock cycles during
 CS[0:2] = 0 are ignored.
+
+See :class:`Urukul` and :class:`SR`
 
 CFG
 ---
@@ -82,43 +90,17 @@ to be monitored.
 
 It is 24 bits wide, MSB first.
 
+See :class:`SR`
+
 CFG write
 .........
 
-The configuration register is updated at last falling SCK edge of the SPI
-transaction.
-The bits in the configuration register (from LSB to MSB) are:
-
-Name      | Width | Function
-========= | ===== | ========
-RF_SW     | 4     | Activates RF switch per channel
-LED       | 4     | Activates the red LED per channel
-PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]
-ATT_LE    | 1     | Asserts ATT[0:3].ATT_LE
-IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU is high
-MASK_NU   | 4     | Disables DDS from QSPI interface, disables IO_UPDATE
-                    control through IO_UPDATE EEM signal, enables access through
-                    CS=3, enables control of IO_UPDATE through CFG.IO_UPDATE
-CLK_SEL   | 1     | Selects CLK source
-SYNC_SEL  | 1     | Selects SYNC source
-RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET, ATT[0:3].RST
-IO_RST    | 1     | Asserts DDS[0:3].IO_RESET
+See :class:`CFG`
 
 CFG read
 ........
 
-Name      | Width | Function
-========= | ===== | ========
-RF_SW     | 4     | Actual RF switch and green LED activation (including that
-                    by EEM1.SW[0:3])
-SMP_ERR   | 4     | DDS[0:3].SMP_ERR
-PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK
-IFC_MODE  | 4     | IFC_MODE[0:3]
-PROTO_REV | 8     | Protocol revision (see __proto_rev__)
-
-The status data is loaded into the CFG shift register at the last (24th)
-falling SCK edge. Consequently the data read refers to the status at the end of
-the previous CFG SPI transaction.
+See :class:`Status`
 
 QSPI
 ----
@@ -136,6 +118,8 @@ DDS[0:3].SCK is driven by NU_CLK (for those DDS not masked)
 DDS[0:3].MOSI is driven by NU_MOSI[0:3] (for those DDS not masked)
 DDS[0:3].MISO is unavailable
 DDS[0:3].IO_UPDATE is driven by IO_UPDATE (for those DDS not masked)
+
+See :class:`Urukul`
 
 ATT
 ---
@@ -259,7 +243,30 @@ class SR(Module):
 
 
 class CFG(Module):
-    """Configuration register"""
+    """Configuration register
+
+    The configuration register is updated at last falling SCK edge of the SPI
+    transaction. The initial state is 0 (all bits cleared).
+    The bits in the configuration register (from LSB to MSB) are:
+
+    | Name      | Width | Function                                        |
+    |-----------+-------+-------------------------------------------------|
+    | RF_SW     | 4     | Activates RF switch per channel                 |
+    | LED       | 4     | Activates the red LED per channel               |
+    | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
+    | ATT_LE    | 1     | Asserts ATT[0:3].ATT_LE                         |
+    | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
+    |           |       | is high                                         |
+    | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
+    |           |       | IO_UPDATE control through IO_UPDATE EEM signal, |
+    |           |       | enables access through CS=3, enables control of |
+    |           |       | IO_UPDATE through CFG.IO_UPDATE                 |
+    | CLK_SEL   | 1     | Selects CLK source                              |
+    | SYNC_SEL  | 1     | Selects SYNC source                             |
+    | RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
+    |           |       | ATT[0:3].RST                                    |
+    | IO_RST    | 1     | Asserts DDS[0:3].IO_RESET                       |
+    """
     def __init__(self, platform, n=4):
         self.data = Record([
             ("rf_sw", n),
@@ -307,7 +314,21 @@ class CFG(Module):
 
 
 class Status(Module):
-    """Status register"""
+    """Status register.
+
+    | Name      | Width | Function                                  |
+    |-----------+-------+-------------------------------------------|
+    | RF_SW     | 4     | Actual RF switch and green LED activation |
+    |           |       | (including that by EEM1.SW[0:3])          |
+    | SMP_ERR   | 4     | DDS[0:3].SMP_ERR                          |
+    | PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK                         |
+    | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
+    | PROTO_REV | 8     | Protocol revision (see __proto_rev__)     |
+
+    The status data is loaded into the CFG shift register at the last (24th)
+    falling SCK edge. Consequently the data read refers to the status at the
+    end of the previous CFG SPI transaction.
+    """
     def __init__(self, platform, n=4):
         self.data = Record([
             ("rf_sw", n),
