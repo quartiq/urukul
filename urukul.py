@@ -375,21 +375,14 @@ class Urukul(Module):
         platform.add_period_constraint(eem[0]._pin, 8.)
         platform.add_period_constraint(eem[2]._pin, 8.)
 
-        nu_sck = Signal()
-        sync_clk = Signal()
         self.specials += [
                 Instance("BUFG", i_I=eem[0].i, o_O=self.cd_sck1.clk),
-                Instance("BUFG", i_I=eem[2].i, o_O=nu_sck),
-                Instance("BUFG", i_I=dds_sync.clk0, o_O=sync_clk),
-                Instance("CLK_DIV2", i_CLKIN=sync_clk,
-                    o_CLKDV=self.cd_sys.clk),
         ]
 
         en_9910 = Signal()  # AD9910 populated (instead of AD9912)
         en_nu = Signal()  # NU-Servo operation with quad SPI
         en_eem1 = Signal()  # EEM1 connected and sync outputs used
-        en_unused = Signal()
-        self.comb += Cat(en_9910, en_nu, en_eem1, en_unused).eq(ifc_mode)
+        self.comb += Cat(en_9910, en_nu, en_eem1).eq(ifc_mode)
 
         self.comb += [
                 [eem[i].oe.eq(0) for i in range(12) if i not in (2, 10)],
@@ -442,7 +435,7 @@ class Urukul(Module):
                     sel_spi.eq(sel[i + 4] | (sel[3] & cfg.data.mask_nu[i])),
                     sel_nu.eq(en_nu & ~cfg.data.mask_nu[i]),
                     ddsi.cs_n.eq(~Mux(sel_nu, eem[5].i, sel_spi)),
-                    ddsi.sck.eq(Mux(sel_nu, nu_sck, self.cd_sck1.clk)),
+                    ddsi.sck.eq(Mux(sel_nu, eem[2].i, self.cd_sck1.clk)),
                     ddsi.sdi.eq(Mux(sel_nu, eem[i + 8].i, mosi)),
                     miso[i + 4].eq(ddsi.sdo),
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
