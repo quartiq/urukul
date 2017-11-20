@@ -1,8 +1,8 @@
 from migen import *
 
 
-# increment this if the behavior changes
-__proto_rev__ = 4
+# increment this if the behavior (LEDs, registers, EEM pins) changes
+__proto_rev__ = 5
 
 """
 Urukul IO router and configuration/status
