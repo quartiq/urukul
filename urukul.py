@@ -411,7 +411,7 @@ class Urukul(Module):
                 dds_sync.sync_out_en.eq(~en_nu & en_eem1 & en_9910),
                 # 1: div-by-4 for AD9910
                 # z: div-by-1 for AD9912
-                ts_clk_div.oe.eq(~en_9910),
+                ts_clk_div.oe.eq(en_9910),
                 ts_clk_div.o.eq(1),
         ]
 
