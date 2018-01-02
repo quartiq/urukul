@@ -318,6 +318,9 @@ class Urukul(Module):
     --------
 
     CFG.CLK_SEL selects the clock source for the clock fanout to the DDS.
+    When CFG.CLK_SEL is 1, then the external SMA clock input is selected.
+    Otherwise the on-board 100 MHz oscillator or the MMCX connector are
+    selected (depending on board variant).
 
     When EN_9910 is on, the clock to the DDS (from the XCO, the internal MMCX
     or the external SMA) is divided by 4.
