@@ -469,9 +469,9 @@ class Urukul(Module):
 
         tp = [platform.request("tp", i) for i in range(5)]
         self.comb += [
-                tp[0].eq(Cat([ddsi.smp_err for ddsi in dds]) == 0),
-                tp[1].eq(Cat([~ddsi.pll_lock for ddsi in dds]) == 0),
-                tp[2].eq(sr._cnt_done),
-                tp[3].eq(sr._i),
-                tp[4].eq(sr.sel),
+                tp[0].eq(dds[0].cs_n),
+                tp[1].eq(dds[0].sck),
+                tp[2].eq(dds[0].sdo),
+                tp[3].eq(dds[0].sdi),
+                tp[4].eq(dds[0].io_update),
         ]
