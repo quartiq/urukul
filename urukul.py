@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 7
+__proto_rev__ = 8
 
 
 class SR(Module):
@@ -15,15 +15,14 @@ class SR(Module):
     * samples SDI on rising clock edges (SCK1 domain)
     * shifts out SDO on falling clock edges (SCK0 domain)
     * MSB first
-    * strictly ``width`` bits per SEL cycle
+    * the first output bit (MSB) is undefined
     * the first output bit is available from the start of the SEL cycle until
       the first falling edge
-    * the first bit is sampled on the first rising edge
-    * after ``width`` bits have been transferred, i.e. on the last
-      falling edge of the transfer, the DI register is updated with the
-      contents of the shift register (just shifted in from the master)
-    * at the same time the shift register is updated with the contents of the
-      DO register to be output during the **next** SEL cycle
+    * the first input bit is sampled on the first rising edge
+    * on the first rising edge with SEL assered, the parallel data DO
+      is loaded into the shift register
+    * following at least one rising clock edge, on the deassertion of SEL,
+      the shift register is loaded into the parallel data register DI
     """
     def __init__(self, width):
         self.sdi = Signal()
@@ -36,34 +35,29 @@ class SR(Module):
         # # #
 
         sr = Signal(width)
-        cnt = Signal(max=width, reset=width-1)
-        cnt_done = Signal()
-        self._cnt_done = cnt_done
-        i = Signal()
-        self._i = i
 
-        self.comb += [
-                self.sdo.eq(sr[-1]),
-                cnt_done.eq(cnt == 0),
+        self.clock_domains.cd_le = ClockDomain("le", reset_less=True)
+        self.specials += Instance("FDPE", p_INIT=1,
+                i_D=0, i_C=ClockSignal("sck1"), i_CE=self.sel, i_PRE=~self.sel,
+                o_Q=self.cd_le.clk)
+
+        self.sync.sck0 += [
+                If(self.sel,
+                    self.sdo.eq(sr[-1]),
+                )
         ]
         self.sync.sck1 += [
                 If(self.sel,
-                    i.eq(self.sdi)
+                    sr[0].eq(self.sdi),
+                    If(self.cd_le.clk,
+                        sr[1:].eq(self.do[:-1])
+                    ).Else(
+                        sr[1:].eq(sr[:-1])
+                    )
                 )
         ]
-        self.sync.sck0 += [
-                If(self.sel,
-                    If(cnt_done,
-                        self.di.eq(Cat(i, sr)),
-                        sr.eq(self.do),
-                        cnt.eq(cnt.reset)
-                    ).Else(
-                        sr.eq(Cat(i, sr)),
-                        cnt.eq(cnt - 1)
-                    )
-                ).Else(
-                    cnt.eq(cnt.reset)
-                )
+        self.sync.le += [
+                self.di.eq(sr)
         ]
 
 
@@ -148,7 +142,8 @@ class Status(Module):
     | SMP_ERR   | 4     | DDS[0:3].SMP_ERR                          |
     | PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK                         |
     | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
-    | PROTO_REV | 8     | Protocol revision (see __proto_rev__)     |
+    | PROTO_REV | 7     | Protocol revision (see __proto_rev__)     |
+    | DUMMY     | 1     | Not used                                  |
 
     The status data is loaded into the CFG shift register at the last (24th)
     falling SCK edge. Consequently the data read refers to the status at the
@@ -160,7 +155,8 @@ class Status(Module):
             ("smp_err", n),
             ("pll_lock", n),
             ("ifc_mode", 4),
-            ("proto_rev", 8)
+            ("proto_rev", 7),
+            ("dummy", 1)
         ])
         self.comb += [
                 self.data.ifc_mode.eq(platform.lookup_request("ifc_mode")),
@@ -431,7 +427,7 @@ class Urukul(Module):
         mosi = eem[1].i
 
         self.specials += Instance("FDPE", p_INIT=1,
-                i_D=0, i_C=self.cd_sck1.clk, i_CE=sel[2], i_PRE=~sel[2],
+                i_D=0, i_C=ClockSignal("sck1"), i_CE=sel[2], i_PRE=~sel[2],
                 o_Q=att.le)
 
         self.comb += [
@@ -473,5 +469,5 @@ class Urukul(Module):
                 tp[1].eq(dds[0].sck),
                 tp[2].eq(dds[0].sdo),
                 tp[3].eq(dds[0].sdi),
-                tp[4].eq(dds[0].io_update),
+                tp[4].eq(sr.cd_le.clk)
         ]
