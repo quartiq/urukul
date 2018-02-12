@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 6
+__proto_rev__ = 7
 
 
 class SR(Module):
@@ -79,7 +79,7 @@ class CFG(Module):
     | RF_SW     | 4     | Activates RF switch per channel                 |
     | LED       | 4     | Activates the red LED per channel               |
     | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
-    | ATT_LE    | 1     | Asserts ATT[0:3].ATT_LE                         |
+    | DUMMY     | 1     |                                                 |
     | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
     |           |       | is high                                         |
     | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
@@ -99,7 +99,7 @@ class CFG(Module):
 
             ("profile", 3),
 
-            ("att_le", 1),
+            ("dummy", 1),
             ("io_update", 1),
 
             ("mask_nu", 4),
@@ -116,6 +116,7 @@ class CFG(Module):
         clk = platform.lookup_request("clk")
         ifc_mode = platform.lookup_request("ifc_mode")
         en_9910 = ifc_mode[0]
+
         self.comb += [
                 dds_common.profile.eq(self.data.profile),
                 clk.in_sel.eq(self.data.clk_sel),
@@ -123,7 +124,6 @@ class CFG(Module):
                 dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
                 att.rst_n.eq(~self.data.rst),
-                att.le.eq(self.data.att_le),
         ]
 
         for i in range(n):
@@ -183,7 +183,7 @@ class Urukul(Module):
     The CPLD controls/monitors:
 
     * the four AD9912 or AD9910 DDS (SPI, status, reset, IO update)
-    * the four digitally controlled RF step attenuators (SPI, ATT_LE, reset)
+    * the four digitally controlled RF step attenuators (SPI, reset)
     * the four RF switches
     * the clock input tree (division and clock selection)
     * the synchronization tree (sync source selection, sync clock output,
@@ -311,8 +311,8 @@ class Urukul(Module):
 
     The digital step attenuators are daisy-chained (ATT[n].S_OUT driving the
     next ATT[n+1].S_IN) and form a 32 bit SPI compatible shift register. The
-    data from the shift register is transferred to the active attenuation
-    register on the rising edge of CFG.ATT_LE.
+    data from the attenuator shift register is transferred to the active
+    attenuation register on the de-selection of the attenuators after shifting.
 
     Clocking
     --------
@@ -429,6 +429,11 @@ class Urukul(Module):
         cs = Signal(3)
         miso = Signal(8)
         mosi = eem[1].i
+
+        self.specials += Instance("FDPE", p_INIT=1,
+                i_D=0, i_C=self.cd_sck1.clk, i_CE=sel[2], i_PRE=~sel[2],
+                o_Q=att.le)
+
         self.comb += [
                 cs.eq(Cat(eem[3].i, eem[4].i, ~en_nu & eem[5].i)),
                 Array(sel)[cs].eq(1),  # one-hot
