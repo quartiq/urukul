@@ -108,8 +108,7 @@ class CFG(Module):
         dds_sync = platform.lookup_request("dds_sync")
         att = platform.lookup_request("att")
         clk = platform.lookup_request("clk")
-        ifc_mode = platform.lookup_request("ifc_mode")
-        en_9910 = ifc_mode[0]
+        self.en_9910 = Signal()
 
         self.comb += [
                 dds_common.profile.eq(self.data.profile),
@@ -127,7 +126,7 @@ class CFG(Module):
                     sw.oe.eq(0),
                     dds.rf_sw.eq(sw.io | self.data.rf_sw[i]),
                     dds.led[0].eq(dds.rf_sw),  # green
-                    dds.led[1].eq(self.data.led[i] | (en_9910 & (
+                    dds.led[1].eq(self.data.led[i] | (self.en_9910 & (
                         dds.smp_err | ~dds.pll_lock))),  # red
             ]
 
@@ -225,10 +224,13 @@ class Urukul(Module):
 
     | IFC_MODE | Name    | Function                                        |
     |----------+---------+-------------------------------------------------|
-    | 0        | EN_9910 | On if AD9910 is populated                       |
+    | 0        | EN_9910 | On if AD9910 is populated (OR VARIANT)          |
     | 1        | EN_NU   | On if NU-Servo mode is used                     |
     | 2        | EN_EEM1 | On if the SYNC signals on EEM1 should be driven |
-    | 3        | UNUSED  | Unused switch                                   |
+    | 3        | UNUSED  | Unusable on Urukul/v1.0                         |
+
+    On Urukul/v1.0, IFC_MODE[0] | IFC_MODE[3] drive EN_9910.
+    On Urukul/v1.1, IFC_MODE[0] | VARIANT (board population) drive EN_9910.
 
     See :class:`Urukul`
 
@@ -366,7 +368,9 @@ class Urukul(Module):
         dds_sync = platform.request("dds_sync")
         dds_common = platform.request("dds_common")
         ifc_mode = platform.request("ifc_mode")
+        variant = platform.request("variant")
         att = platform.request("att")
+        fsen = platform.request("fsen")
         dds = [platform.request("dds", i) for i in range(4)]
 
         ts_clk_div = TSTriple()
@@ -398,9 +402,12 @@ class Urukul(Module):
         en_9910 = Signal()  # AD9910 populated (instead of AD9912)
         en_nu = Signal()  # NU-Servo operation with quad SPI
         en_eem1 = Signal()  # EEM1 connected and sync outputs used
-        self.comb += Cat(en_9910, en_nu, en_eem1).eq(ifc_mode)
 
         self.comb += [
+                fsen.eq(1),
+                en_9910.eq(ifc_mode[0] | variant),
+                en_nu.eq(ifc_mode[1]),
+                en_eem1.eq(ifc_mode[2]),
                 [eem[i].oe.eq(0) for i in range(12) if i not in (2, 10)],
                 eem[2].oe.eq(~en_nu),
                 eem[10].oe.eq(~en_nu & en_eem1),
@@ -431,6 +438,7 @@ class Urukul(Module):
                 o_Q=att.le)
 
         self.comb += [
+                cfg.en_9910.eq(en_9910),
                 cs.eq(Cat(eem[3].i, eem[4].i, ~en_nu & eem[5].i)),
                 Array(sel)[cs].eq(1),  # one-hot
                 eem[2].o.eq(Array(miso)[cs]),

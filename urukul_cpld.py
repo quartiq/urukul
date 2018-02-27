@@ -9,9 +9,16 @@ _io = [
         ("tp", 3, Pins("P136")),
         ("tp", 4, Pins("P134")),
 
-        ("ifc_mode", 0,
-            Pins("P104 P105 P110 P111"),
-            Misc("PULLUP")),
+        # P112 is open on Urukul/v1.0
+        ("ifc_mode", 0, Pins("P104 P105 P110 P112")),
+
+        # P111 is IFC_MODE_SEL3 on Urukul/v1.0
+        # 10k low: AD9912, 0R high: AD9910
+        ("variant", 0, Pins("P111")),
+
+        # fail save LVDS enable, LVDS mode selection
+        # high: type 2 receiver, failsafe low
+        ("fsen", 0, Pins("P115")),
 
         ("clk", 0,
             Subsignal("div", Pins("P11")),
