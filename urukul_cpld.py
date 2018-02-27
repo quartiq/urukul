@@ -31,8 +31,7 @@ _io = [
             Subsignal("profile", Pins("P130 P131 P132"))),
 
         ("dds_sync", 0,
-            Subsignal("clk0", Pins("P38"),
-                Misc("PULLUP")),  # DDS_SYNC_CLK0
+            Subsignal("clk0", Pins("P38"), Misc("PULLUP")),  # DDS_SYNC_CLK0
             Subsignal("clk_out_en", Pins("P86")),  # DDS_SYNC_CLK_OUTEN
             Subsignal("sync_sel", Pins("P60")),  # DDS_SYNC_CLKSEL
             Subsignal("sync_out_en", Pins("P92"))),  # DDS_SYNC_OUTEN
@@ -44,7 +43,7 @@ _io = [
             Subsignal("pll_lock", Pins("P21"), Misc("PULLUP")),
             Subsignal("io_update", Pins("P4")),
             Subsignal("sck", Pins("P3")),
-            Subsignal("sdo", Pins("P113")),
+            Subsignal("sdo", Pins("P113"), Misc("PULLUP")),
             Subsignal("sdi", Pins("P2")),
             Subsignal("cs_n", Pins("P119"))),
 
@@ -55,7 +54,7 @@ _io = [
             Subsignal("pll_lock", Pins("P35"), Misc("PULLUP")),
             Subsignal("io_update", Pins("P10")),
             Subsignal("sck", Pins("P9")),
-            Subsignal("sdo", Pins("P6")),
+            Subsignal("sdo", Pins("P6"), Misc("PULLUP")),
             Subsignal("sdi", Pins("P7")),
             Subsignal("cs_n", Pins("P5"))),
 
@@ -66,7 +65,7 @@ _io = [
             Subsignal("pll_lock", Pins("P41"), Misc("PULLUP")),
             Subsignal("io_update", Pins("P14")),
             Subsignal("sck", Pins("P13")),
-            Subsignal("sdo", Pins("P17")),
+            Subsignal("sdo", Pins("P17"), Misc("PULLUP")),
             Subsignal("sdi", Pins("P15")),
             Subsignal("cs_n", Pins("P16"))),
 
@@ -77,7 +76,7 @@ _io = [
             Subsignal("pll_lock", Pins("P49"), Misc("PULLUP")),
             Subsignal("io_update", Pins("P25")),
             Subsignal("sck", Pins("P22")),
-            Subsignal("sdo", Pins("P23")),
+            Subsignal("sdo", Pins("P23"), Misc("PULLUP")),
             Subsignal("sdi", Pins("P26")),
             Subsignal("cs_n", Pins("P24"))),
 
