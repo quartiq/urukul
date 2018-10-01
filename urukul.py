@@ -68,23 +68,26 @@ class CFG(Module):
     transaction. The initial state is 0 (all bits cleared).
     The bits in the configuration register (from LSB to MSB) are:
 
-    | Name      | Width | Function                                        |
-    |-----------+-------+-------------------------------------------------|
-    | RF_SW     | 4     | Activates RF switch per channel                 |
-    | LED       | 4     | Activates the red LED per channel               |
-    | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
-    | DUMMY     | 1     |                                                 |
-    | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
-    |           |       | is high                                         |
-    | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
-    |           |       | IO_UPDATE control through IO_UPDATE EEM signal, |
-    |           |       | enables access through CS=3, enables control of |
-    |           |       | IO_UPDATE through CFG.IO_UPDATE                 |
-    | CLK_SEL   | 1     | Selects CLK source                              |
-    | SYNC_SEL  | 1     | Selects SYNC source                             |
-    | RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
-    |           |       | ATT[0:3].RST                                    |
-    | IO_RST    | 1     | Asserts DDS[0:3].IO_RESET                       |
+    | Name          | Width | Function                                        |
+    |---------------+-------+-------------------------------------------------|
+    | RF_SW         | 4     | Activates RF switch per channel                 |
+    | LED           | 4     | Activates the red LED per channel               |
+    | PROFILE       | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
+    | DUMMY         | 1     |                                                 |
+    | IO_UPDATE     | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
+    |               |       | is high                                         |
+    | MASK_NU       | 4     | Disables DDS from QSPI interface, disables      |
+    |               |       | IO_UPDATE control through IO_UPDATE EEM signal, |
+    |               |       | enables access through CS=3, enables control of |
+    |               |       | IO_UPDATE through CFG.IO_UPDATE                 |
+    | CLK_SEL       | 1     | Selects CLK source                              |
+    | SYNC_SEL      | 1     | Selects SYNC source                             |
+    | RST           | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
+    |               |       | ATT[0:3].RST                                    |
+    | IO_RST        | 1     | Asserts DDS[0:3].IO_RESET                       |
+    | MMCX_OSC_SEL  | 1     | Selects CLK source between MMCX and OSC         |
+    | OSC_EN        | 1     | Enables oscillator                              |
+
     """
     def __init__(self, platform, n=4):
         self.data = Record([
@@ -103,6 +106,9 @@ class CFG(Module):
 
             ("rst", 1),
             ("io_rst", 1),
+
+            ("mmcx_osc_n_sel", 1),
+            ("osc_en_n", 1),
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -116,6 +122,8 @@ class CFG(Module):
                 dds_sync.sync_sel.eq(self.data.sync_sel),
                 dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
+                clk.mmcx_osc_n_sel.eq(self.data.mmcx_osc_n_sel),
+                clk.osc_en_n.eq(self.data.osc_en_n),
                 att.rst_n.eq(~self.data.rst),
         ]
 
@@ -471,11 +479,11 @@ class Urukul(Module):
                         cfg.data.io_update, eem[6].i)),
             ]
 
-        tp = [platform.request("tp", i) for i in range(5)]
+        tp = [platform.request("tp", i) for i in range(3)]
         self.comb += [
                 tp[0].eq(dds[0].cs_n),
                 tp[1].eq(dds[0].sck),
                 tp[2].eq(dds[0].sdo),
-                tp[3].eq(dds[0].sdi),
-                tp[4].eq(sr.cd_le.clk)
+                # tp[3].eq(dds[0].sdi),
+                # tp[4].eq(sr.cd_le.clk)
         ]
