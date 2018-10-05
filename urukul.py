@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 8
+__proto_rev__ = 9
 
 
 class SR(Module):
@@ -73,14 +73,14 @@ class CFG(Module):
     | RF_SW     | 4     | Activates RF switch per channel                 |
     | LED       | 4     | Activates the red LED per channel               |
     | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
-    | DUMMY     | 1     |                                                 |
+    | CLK_SEL1  | 1     | Selects CLK source: 0 OSC, 1 MMCX               |
     | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
     |           |       | is high                                         |
     | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
     |           |       | IO_UPDATE control through IO_UPDATE EEM signal, |
     |           |       | enables access through CS=3, enables control of |
     |           |       | IO_UPDATE through CFG.IO_UPDATE                 |
-    | CLK_SEL   | 1     | Selects CLK source                              |
+    | CLK_SEL0  | 1     | Selects CLK source: 0 MMCX/OSC, 1 SMA           |
     | SYNC_SEL  | 1     | Selects SYNC source                             |
     | RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
     |           |       | ATT[0:3].RST                                    |
@@ -93,12 +93,12 @@ class CFG(Module):
 
             ("profile", 3),
 
-            ("dummy", 1),
+            ("clk_sel1", 1),
             ("io_update", 1),
 
             ("mask_nu", 4),
 
-            ("clk_sel", 1),
+            ("clk_sel0", 1),
             ("sync_sel", 1),
 
             ("rst", 1),
@@ -112,7 +112,9 @@ class CFG(Module):
 
         self.comb += [
                 dds_common.profile.eq(self.data.profile),
-                clk.in_sel.eq(self.data.clk_sel),
+                clk.in_sel.eq(self.data.clk_sel0),
+                clk.mmcx_osc_sel.eq(self.data.clk_sel1),
+                clk.osc_en_n.eq(clk.in_sel | clk.mmcx_osc_sel),
                 dds_sync.sync_sel.eq(self.data.sync_sel),
                 dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
@@ -471,11 +473,9 @@ class Urukul(Module):
                         cfg.data.io_update, eem[6].i)),
             ]
 
-        tp = [platform.request("tp", i) for i in range(5)]
+        tp = [platform.request("tp", i) for i in range(3)]
         self.comb += [
                 tp[0].eq(dds[0].cs_n),
                 tp[1].eq(dds[0].sck),
-                tp[2].eq(dds[0].sdo),
-                tp[3].eq(dds[0].sdi),
-                tp[4].eq(sr.cd_le.clk)
+                tp[2].eq(dds[0].sdo)
         ]
