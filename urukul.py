@@ -73,18 +73,19 @@ class CFG(Module):
     | RF_SW     | 4     | Activates RF switch per channel                 |
     | LED       | 4     | Activates the red LED per channel               |
     | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
-    | DUMMY     | 1     |                                                 |
+    | DUMMY     | 1     | Reserved (used in a previous revision)          |
     | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
     |           |       | is high                                         |
     | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
     |           |       | IO_UPDATE control through IO_UPDATE EEM signal, |
     |           |       | enables access through CS=3, enables control of |
     |           |       | IO_UPDATE through CFG.IO_UPDATE                 |
-    | CLK_SEL   | 1     | Selects CLK source                              |
+    | CLK_SEL0  | 1     | Selects CLK source: 0 MMCX/OSC, 1 SMA           |
     | SYNC_SEL  | 1     | Selects SYNC source                             |
     | RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
     |           |       | ATT[0:3].RST                                    |
     | IO_RST    | 1     | Asserts DDS[0:3].IO_RESET                       |
+    | CLK_SEL1  | 1     | Selects CLK source: 0 OSC, 1 MMCX               |
     """
     def __init__(self, platform, n=4):
         self.data = Record([
@@ -98,11 +99,12 @@ class CFG(Module):
 
             ("mask_nu", 4),
 
-            ("clk_sel", 1),
+            ("clk_sel0", 1),
             ("sync_sel", 1),
 
             ("rst", 1),
             ("io_rst", 1),
+            ("clk_sel1", 1)
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -112,7 +114,9 @@ class CFG(Module):
 
         self.comb += [
                 dds_common.profile.eq(self.data.profile),
-                clk.in_sel.eq(self.data.clk_sel),
+                clk.in_sel.eq(self.data.clk_sel0),
+                clk.mmcx_osc_sel.eq(self.data.clk_sel1),
+                clk.osc_en_n.eq(clk.in_sel | clk.mmcx_osc_sel),
                 dds_sync.sync_sel.eq(self.data.sync_sel),
                 dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
@@ -316,9 +320,15 @@ class Urukul(Module):
     --------
 
     CFG.CLK_SEL selects the clock source for the clock fanout to the DDS.
-    When CFG.CLK_SEL is 1, then the external SMA clock input is selected.
-    Otherwise the on-board 100 MHz oscillator or the MMCX connector are
-    selected (depending on board variant).
+    Valid clocking options are:
+        - 0x00: on-board 100MHz oscillator
+        - 0x01: front-panel SMA
+        - 0x02: internal MMCX (hardware version >= 1.3 only)
+
+    For hardware revisions prior to v1.3, 0x00 selects either the on-board
+    oscillator or the MMCX, dependent on component population. In these
+    hardware revisions, the oscillator must be manually powered down to avoid
+    RF leakage through the clock switch.
 
     When EN_9910 is on, the clock to the DDS (from the XCO, the internal MMCX
     or the external SMA) is divided by 4.
@@ -471,11 +481,9 @@ class Urukul(Module):
                         cfg.data.io_update, eem[6].i)),
             ]
 
-        tp = [platform.request("tp", i) for i in range(5)]
+        tp = [platform.request("tp", i) for i in range(3)]
         self.comb += [
                 tp[0].eq(dds[0].cs_n),
                 tp[1].eq(dds[0].sck),
-                tp[2].eq(dds[0].sdo),
-                tp[3].eq(dds[0].sdi),
-                tp[4].eq(sr.cd_le.clk)
+                tp[2].eq(dds[0].sdo)
         ]
