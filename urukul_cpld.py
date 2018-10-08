@@ -6,8 +6,8 @@ _io = [
         ("tp", 0, Pins("P143")),
         ("tp", 1, Pins("P140")),
         ("tp", 2, Pins("P138")),
-        ("tp", 3, Pins("P136")),
-        ("tp", 4, Pins("P134")),
+        # ("tp", 3, Pins("P136")),
+        # ("tp", 4, Pins("P134")),
 
         # P112 is open on Urukul/v1.0
         ("ifc_mode", 0, Pins("P104 P105 P110 P112")),
@@ -22,7 +22,9 @@ _io = [
 
         ("clk", 0,
             Subsignal("div", Pins("P11")),
-            Subsignal("in_sel", Pins("P12"))),
+            Subsignal("in_sel", Pins("P12")),
+            Subsignal("mmcx_osc_n_sel", Pins("P136")),
+            Subsignal("osc_en_n", Pins("P134"))),
 
         ("att", 0,
             Subsignal("clk", Pins("P95")),
