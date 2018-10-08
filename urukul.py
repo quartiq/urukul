@@ -1,8 +1,7 @@
 from migen import *
 
-
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 8
+__proto_rev__ = 9
 
 
 class SR(Module):
@@ -86,7 +85,6 @@ class CFG(Module):
     |               |       | ATT[0:3].RST                                    |
     | IO_RST        | 1     | Asserts DDS[0:3].IO_RESET                       |
     | MMCX_OSC_SEL  | 1     | Selects CLK source between MMCX and OSC         |
-    | OSC_EN        | 1     | Enables oscillator                              |
 
     """
     def __init__(self, platform, n=4):
@@ -108,7 +106,6 @@ class CFG(Module):
             ("io_rst", 1),
 
             ("mmcx_osc_n_sel", 1),
-            ("osc_en_n", 1),
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -123,7 +120,7 @@ class CFG(Module):
                 dds_common.master_reset.eq(self.data.rst),
                 dds_common.io_reset.eq(self.data.io_rst),
                 clk.mmcx_osc_n_sel.eq(self.data.mmcx_osc_n_sel),
-                clk.osc_en_n.eq(self.data.osc_en_n),
+                clk.osc_en_n.eq(clk.in_sel | clk.mmcx_osc_n_sel),
                 att.rst_n.eq(~self.data.rst),
         ]
 
