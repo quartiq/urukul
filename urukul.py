@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 9
+__proto_rev__ = 8
 
 
 class SR(Module):
@@ -73,7 +73,7 @@ class CFG(Module):
     | RF_SW     | 4     | Activates RF switch per channel                 |
     | LED       | 4     | Activates the red LED per channel               |
     | PROFILE   | 3     | Controls DDS[0:3].PROFILE[0:2]                  |
-    | CLK_SEL1  | 1     | Selects CLK source: 0 OSC, 1 MMCX               |
+    | DUMMY     | 1     | Reserved (used in a previous revision)          |
     | IO_UPDATE | 1     | Asserts DDS[0:3].IO_UPDATE where CFG.MASK_NU    |
     |           |       | is high                                         |
     | MASK_NU   | 4     | Disables DDS from QSPI interface, disables      |
@@ -85,6 +85,7 @@ class CFG(Module):
     | RST       | 1     | Asserts DDS[0:3].RESET, DDS[0:3].MASTER_RESET,  |
     |           |       | ATT[0:3].RST                                    |
     | IO_RST    | 1     | Asserts DDS[0:3].IO_RESET                       |
+    | CLK_SEL1  | 1     | Selects CLK source: 0 OSC, 1 MMCX               |
     """
     def __init__(self, platform, n=4):
         self.data = Record([
@@ -93,7 +94,7 @@ class CFG(Module):
 
             ("profile", 3),
 
-            ("clk_sel1", 1),
+            ("dummy", 1),
             ("io_update", 1),
 
             ("mask_nu", 4),
@@ -103,6 +104,7 @@ class CFG(Module):
 
             ("rst", 1),
             ("io_rst", 1),
+            ("clk_sel1", 1)
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -318,9 +320,15 @@ class Urukul(Module):
     --------
 
     CFG.CLK_SEL selects the clock source for the clock fanout to the DDS.
-    When CFG.CLK_SEL is 1, then the external SMA clock input is selected.
-    Otherwise the on-board 100 MHz oscillator or the MMCX connector are
-    selected (depending on board variant).
+    Valid clocking options are:
+        - 0x00: on-board 100MHz oscillator
+        - 0x01: front-panel SMA
+        - 0x02: internal MMCX (hardware version >= 1.3 only)
+
+    For hardware revisions prior to v1.3, 0x00 selects either the on-board
+    oscillator or the MMCX, dependent on component population. In these
+    hardware revisions, the oscillator must be manually powered down to avoid
+    RF leakage through the clock switch.
 
     When EN_9910 is on, the clock to the DDS (from the XCO, the internal MMCX
     or the external SMA) is divided by 4.
