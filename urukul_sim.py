@@ -36,7 +36,7 @@ class SimInstance:
 class TB(Module):
     def __init__(self, platform, dut):
         self.platform = platform
-        self.submodules.dut = dut
+        self.submodules.dut = CEInserter(["le"])(dut)
         for k in "tp dds dds_common dds_sync clk ifc_mode att eem".split():
             v = []
             while True:
@@ -63,12 +63,13 @@ class TB(Module):
             yield self.eem[0].io.eq(0)
             yield
             yield self.eem[0].io.eq(1)
-            # miso = (miso << 1) | (yield self.eem[2].io)
             miso = (miso << 1) | (yield self.dut.eem[2].o)
             yield
             yield self.eem[0].io.eq(0)
+        yield self.dut.ce_le.eq(1)
         yield
         yield self.cs.eq(0)
+        yield self.dut.ce_le.eq(0)
         yield
         yield
         yield
@@ -86,21 +87,27 @@ class TB(Module):
         yield
         yield from self.spi(1, 24, 0x123456)
         for i in range(4):
+            # check switch status
             sw = yield self.dds[i].rf_sw
             assert sw == ((0x6 | 1) >> i) & 1, (i, sw)
+            # check led status
             led = yield self.dds[i].led[1]
             assert led == ((0x5 | 0xe | 0x2) >> i) & 1, (i, led)
+        # check profile
         profile = yield self.dds_common.profile
         assert profile == 0x4
+        # check attenuator latch
         att_le = yield self.att.le
         assert att_le == 0
 
         ret = yield from self.spi(1, 24, 0x123456)
+        # check version
+        assert ret & 0xff0000 == 0x080000, hex(ret)
+        # check switch readback
         assert ret & 0xf == 1, hex(ret)
-        assert ret & 0xff0000 == 0x050000
         ret = yield from self.spi(1, 24, 0x123456)
         assert ret & 0xf == 0x6 | 1, hex(ret)
-        assert ret & 0xff0000 == 0x050000
+        assert ret & 0xff0000 == 0x080000, hex(ret)
 
         yield from self.spi(2, 32, 0xf0f0f0f0)  # ATT
         yield from self.spi(4, 16, 0x1234)
@@ -114,7 +121,8 @@ def main():
     tb = TB(p, dut)
     run_simulation(tb, [tb.test()], vcd_name="urukul.vcd",
             # just operate on sck0
-            clocks={"sys": 8, "sck1": (16, 4), "sck0": (16, 12)},
+            clocks={"sys": 8, "sck1": (16, 4), "sck0": (16, 12),
+                "le": 8},
             special_overrides={Tristate: SimTristate, Instance: SimInstance})
 
 
