@@ -19,3 +19,7 @@ make
 xc3sprog -c xpc -m /opt/Xilinx/14.7/ISE_DS/ISE/xbr/data -v build/urukul.jed:w
 # look for "Verify: Success"
 ```
+
+# License
+
+GPLv3+
