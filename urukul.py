@@ -150,7 +150,7 @@ class Status(Module):
     | PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK                         |
     | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
     | PROTO_REV | 7     | Protocol revision (see __proto_rev__)     |
-    | DUMMY     | 1     | Not used                                  |
+    | DUMMY     | 1     | Not used, not usable, undefined           |
 
     The status data is loaded into the CFG shift register at the last (24th)
     falling SCK edge. Consequently the data read refers to the status at the
@@ -489,5 +489,5 @@ class Urukul(Module):
         self.comb += [
                 tp[0].eq(dds[0].cs_n),
                 tp[1].eq(dds[0].sck),
-                tp[2].eq(dds[0].sdo)
+                tp[2].eq(dds[0].sdi)
         ]
