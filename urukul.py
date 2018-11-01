@@ -482,7 +482,7 @@ class Urukul(Module):
                     ddsi.sdi.eq(Mux(sel_nu, eem[i + 8].i, mosi)),
                     miso[i + 4].eq(ddsi.sdo),
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
-                        cfg.data.io_update, eem[6].i)),
+                        cfg.data.io_update, (sel[0] | sel[i + 4]) & eem[6].i)),
             ]
 
         tp = [platform.request("tp", i) for i in range(3)]
