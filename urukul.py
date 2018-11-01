@@ -37,6 +37,9 @@ class SR(Module):
         sr = Signal(width)
 
         self.clock_domains.cd_le = ClockDomain("le", reset_less=True)
+        # clock the latch domain from selection deassertion but only after
+        # there was a serial clock edge with asserted select (i.e. ignore
+        # glitches).
         self.specials += Instance("FDPE", p_INIT=1,
                 i_D=0, i_C=ClockSignal("sck1"), i_CE=self.sel, i_PRE=~self.sel,
                 o_Q=self.cd_le.clk)
@@ -44,6 +47,7 @@ class SR(Module):
         self.sync.sck0 += [
                 If(self.sel,
                     self.sdo.eq(sr[-1]),
+
                 )
         ]
         self.sync.sck1 += [
