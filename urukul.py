@@ -90,6 +90,9 @@ class CFG(Module):
     |           |       | ATT[0:3].RST                                    |
     | IO_RST    | 1     | Asserts DDS[0:3].IO_RESET                       |
     | CLK_SEL1  | 1     | Selects CLK source: 0 OSC, 1 MMCX               |
+    | DIV       | 2     | Clock divider configuration: 0: default,        |
+    |           |       | 1: divide-by-one, 2: divider-by-two,            |
+    |           |       | 3: divide-by-four                               |
     """
     def __init__(self, platform, n=4):
         self.data = Record([
@@ -108,7 +111,8 @@ class CFG(Module):
 
             ("rst", 1),
             ("io_rst", 1),
-            ("clk_sel1", 1)
+            ("clk_sel1", 1),
+            ("div", 2),
         ])
         dds_common = platform.lookup_request("dds_common")
         dds_sync = platform.lookup_request("dds_sync")
@@ -334,8 +338,11 @@ class Urukul(Module):
     hardware revisions, the oscillator must be manually powered down to avoid
     RF leakage through the clock switch.
 
-    When EN_9910 is on, the clock to the DDS (from the XCO, the internal MMCX
-    or the external SMA) is divided by 4.
+    If CFG.DIV is 0 the clock division is determined EN_9910. If it is on,
+    the clock to the DDS (from the XCO, the internal MMCX or the external
+    SMA) is divided by 4.
+
+    If CFG.DIV is 1, 2, or 3 it determines the clock divisor (1, 2, 4).
 
     Synchronization
     ---------------
@@ -429,10 +436,6 @@ class Urukul(Module):
                 self.cd_sck0.clk.eq(~self.cd_sck1.clk),
                 dds_sync.clk_out_en.eq(~en_nu & en_eem1 & en_9910),
                 dds_sync.sync_out_en.eq(~en_nu & en_eem1 & en_9910),
-                # 1: div-by-4 for AD9910
-                # z: div-by-1 for AD9912
-                ts_clk_div.oe.eq(en_9910),
-                ts_clk_div.o.eq(1),
         ]
 
         cfg = CFG(platform)
@@ -470,6 +473,12 @@ class Urukul(Module):
                 sr.do.eq(stat.data.raw_bits()),
 
                 dds_common.reset.eq(cfg.data.rst | (~en_9910 & eem[7].i)),
+
+                # dividers: z: 1, 0: 2, 1: 4
+                # 1: div-by-4 for AD9910
+                # z: div-by-1 for AD9912
+                ts_clk_div.oe.eq(Array([en_9910, 0, 1, 1])[cfg.data.div]),
+                ts_clk_div.o.eq(Array([1, 1, 0, 1])[cfg.data.div]),
         ]
         for i, ddsi in enumerate(dds):
             sel_spi = Signal()
