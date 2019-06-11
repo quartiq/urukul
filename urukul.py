@@ -68,8 +68,9 @@ class SR(Module):
 class CFG(Module):
     """Configuration register
 
-    The configuration register is updated at last falling SCK edge of the SPI
-    transaction. The initial state is 0 (all bits cleared).
+    The configuration register is updated from the SPI shift register on the
+    deselection of the CPLD at the end of the SPI transaction.
+    The initial state is 0 (all bits cleared).
     The bits in the configuration register (from LSB to MSB) are:
 
     | Name      | Width | Function                                        |
@@ -146,6 +147,10 @@ class CFG(Module):
 class Status(Module):
     """Status register.
 
+    The status data is loaded into the SPI shift register on the first
+    rising SCK edge while the CPLD is selected. The bits from LSB to MSB
+    are:
+
     | Name      | Width | Function                                  |
     |-----------+-------+-------------------------------------------|
     | RF_SW     | 4     | Actual RF switch and green LED activation |
@@ -155,10 +160,6 @@ class Status(Module):
     | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
     | PROTO_REV | 7     | Protocol revision (see __proto_rev__)     |
     | DUMMY     | 1     | Not used, not usable, undefined           |
-
-    The status data is loaded into the CFG shift register at the last (24th)
-    falling SCK edge. Consequently the data read refers to the status at the
-    end of the previous CFG SPI transaction.
     """
     def __init__(self, platform, n=4):
         self.data = Record([
