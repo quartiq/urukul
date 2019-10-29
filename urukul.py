@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 8
+__proto_rev__ = 0
 
 
 class SR(Module):
@@ -122,7 +122,6 @@ class CFG(Module):
         self.en_9910 = Signal()
 
         self.comb += [
-                dds_common.profile.eq(self.data.profile),
                 clk.in_sel.eq(self.data.clk_sel0),
                 clk.mmcx_osc_sel.eq(self.data.clk_sel1),
                 clk.osc_en_n.eq(clk.in_sel | clk.mmcx_osc_sel),
@@ -141,6 +140,10 @@ class CFG(Module):
                     dds.led[0].eq(dds.rf_sw),  # green
                     dds.led[1].eq(self.data.led[i] | (self.en_9910 & (
                         dds.smp_err | ~dds.pll_lock))),  # red
+                    dds.profile.eq(self.data.profile),
+                    dds.osk.eq(1),
+                    dds.drhold.eq(0),
+                    dds.drctl.eq(0),
             ]
 
 
@@ -158,7 +161,8 @@ class Status(Module):
     | SMP_ERR   | 4     | DDS[0:3].SMP_ERR                          |
     | PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK                         |
     | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
-    | PROTO_REV | 7     | Protocol revision (see __proto_rev__)     |
+    | PROTO_REV | 3     | Protocol revision (see __proto_rev__)     |
+    | HW_REV    | 4     | Hardware revision                         |
     | DUMMY     | 1     | Not used, not usable, undefined           |
     """
     def __init__(self, platform, n=4):
@@ -167,19 +171,23 @@ class Status(Module):
             ("smp_err", n),
             ("pll_lock", n),
             ("ifc_mode", 4),
-            ("proto_rev", 7),
+            ("proto_rev", 3),
+            ("hw_rev", 4),
             ("dummy", 1)
         ])
         self.comb += [
                 self.data.ifc_mode.eq(platform.lookup_request("ifc_mode")),
-                self.data.proto_rev.eq(__proto_rev__)
+                self.data.proto_rev.eq(__proto_rev__),
+                self.data.hw_rev.eq(platform.request("hw_rev")),
         ]
         for i in range(n):
             dds = platform.lookup_request("dds", i)
             self.comb += [
                     self.data.rf_sw[i].eq(dds.rf_sw),
                     self.data.smp_err[i].eq(dds.smp_err),
-                    self.data.pll_lock[i].eq(dds.pll_lock),
+                    self.data.pll_lock[i].eq(dds.pll_lock
+                        | dds.drover  # FIXME debug
+                    ),
             ]
 
 
@@ -451,9 +459,9 @@ class Urukul(Module):
         miso = Signal(8)
         mosi = eem[1].i
 
-        self.specials += Instance("FDPE", p_INIT=1,
+        self.specials += [Instance("FDPE", p_INIT=1,
                 i_D=0, i_C=ClockSignal("sck1"), i_CE=sel[2], i_PRE=~sel[2],
-                o_Q=att.le)
+                o_Q=att.le[i]) for i in range(4)]
 
         self.comb += [
                 cfg.en_9910.eq(en_9910),
@@ -463,8 +471,7 @@ class Urukul(Module):
                 miso[3].eq(miso[4]),  # for all-DDS take DDS0:MISO
 
                 att.clk.eq(sel[2] & self.cd_sck1.clk),
-                att.s_in.eq(mosi),
-                miso[2].eq(att.s_out),
+                Cat(att.s_in, miso[2]).eq(Cat(mosi, att.s_out)),
 
                 sr.sel.eq(sel[1]),
                 sr.sdi.eq(mosi),
@@ -472,8 +479,6 @@ class Urukul(Module):
 
                 cfg.data.raw_bits().eq(sr.di),
                 sr.do.eq(stat.data.raw_bits()),
-
-                dds_common.reset.eq(cfg.data.rst | (~en_9910 & eem[7].i)),
 
                 # dividers: z: 1, 0: 2, 1: 4
                 # 1: div-by-4 for AD9910
@@ -493,11 +498,14 @@ class Urukul(Module):
                     miso[i + 4].eq(ddsi.sdo),
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
                         cfg.data.io_update, eem[6].i)),
+                    ddsi.reset.eq(cfg.data.rst | (~en_9910 & eem[7].i)),
             ]
 
-        tp = [platform.request("tp", i) for i in range(3)]
+        tp = [platform.request("tp", i) for i in range(5)]
         self.comb += [
                 tp[0].eq(dds[0].cs_n),
                 tp[1].eq(dds[0].sck),
-                tp[2].eq(dds[0].sdi)
+                tp[2].eq(dds[0].sdi),
+                tp[3].eq(dds[0].sdo),
+                tp[4].eq(dds[0].drover),
         ]
