@@ -2,7 +2,7 @@ from migen import *
 
 
 # increment this if the behavior (LEDs, registers, EEM pins) changes
-__proto_rev__ = 0
+__proto_rev__ = 8
 
 
 class SR(Module):
@@ -161,8 +161,7 @@ class Status(Module):
     | SMP_ERR   | 4     | DDS[0:3].SMP_ERR                          |
     | PLL_LOCK  | 4     | DDS[0:3].PLL_LOCK                         |
     | IFC_MODE  | 4     | IFC_MODE[0:3]                             |
-    | PROTO_REV | 3     | Protocol revision (see __proto_rev__)     |
-    | HW_REV    | 4     | Hardware revision                         |
+    | PROTO_REV | 7     | Protocol revision (see __proto_rev__)     |
     | DUMMY     | 1     | Not used, not usable, undefined           |
     """
     def __init__(self, platform, n=4):
@@ -171,23 +170,20 @@ class Status(Module):
             ("smp_err", n),
             ("pll_lock", n),
             ("ifc_mode", 4),
-            ("proto_rev", 3),
-            ("hw_rev", 4),
+            ("proto_rev", 7),
             ("dummy", 1)
         ])
         self.comb += [
                 self.data.ifc_mode.eq(platform.lookup_request("ifc_mode")),
                 self.data.proto_rev.eq(__proto_rev__),
-                self.data.hw_rev.eq(platform.request("hw_rev")),
+                # self.data.hw_rev.eq(platform.request("hw_rev")),
         ]
         for i in range(n):
             dds = platform.lookup_request("dds", i)
             self.comb += [
                     self.data.rf_sw[i].eq(dds.rf_sw),
                     self.data.smp_err[i].eq(dds.smp_err),
-                    self.data.pll_lock[i].eq(dds.pll_lock
-                        | dds.drover  # FIXME debug
-                    ),
+                    self.data.pll_lock[i].eq(dds.pll_lock),
             ]
 
 
