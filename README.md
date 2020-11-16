@@ -1,3 +1,5 @@
+[![QUARTIQ Matrix Chat](https://img.shields.io/matrix/quartiq:matrix.org)](https://matrix.to/#/#quartiq:matrix.org)
+
 # Urukul CPLD code
 
 [Urukul overview](https://github.com/sinara-hw/Urukul/wiki)
