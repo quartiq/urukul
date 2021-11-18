@@ -586,10 +586,3 @@ class Urukul(Module):
                     ddsi.io_update.eq(Mux(cfg.data.mask_nu[i],
                         cfg.data.io_update, eem[6].i)),
             ]
-
-        tp = [platform.request("tp", i) for i in range(3)]
-        self.comb += [
-                tp[0].eq(dds[0].cs_n),
-                tp[1].eq(dds[0].sck),
-                tp[2].eq(dds[0].sdi)
-        ]
