@@ -36,14 +36,6 @@ class SR(Module):
 
         sr = Signal(width)
 
-        self.clock_domains.cd_le = ClockDomain("le", reset_less=True)
-        # clock the latch domain from selection deassertion but only after
-        # there was a serial clock edge with asserted select (i.e. ignore
-        # glitches).
-        self.specials += Instance("FDPE", p_INIT=1,
-                i_D=0, i_C=ClockSignal("sck1"), i_CE=self.sel, i_PRE=~self.sel,
-                o_Q=self.cd_le.clk)
-
         self.sync.sck0 += [
                 If(self.sel,
                     self.sdo.eq(sr[-1]),
@@ -53,7 +45,7 @@ class SR(Module):
         self.sync.sck1 += [
                 If(self.sel,
                     sr[0].eq(self.sdi),
-                    If(self.cd_le.clk,
+                    If(ClockSignal("le"),
                         sr[1:].eq(self.do[:-1])
                     ).Else(
                         sr[1:].eq(sr[:-1])
@@ -413,6 +405,7 @@ class Urukul(Module):
         self.clock_domains.cd_sys = ClockDomain("sys", reset_less=True)
         self.clock_domains.cd_sck0 = ClockDomain("sck0", reset_less=True)
         self.clock_domains.cd_sck1 = ClockDomain("sck1", reset_less=True)
+        self.clock_domains.cd_le = ClockDomain("le", reset_less=True)
 
         platform.add_period_constraint(eem[0]._pin, 8.)
         platform.add_period_constraint(eem[2]._pin, 8.)
@@ -454,6 +447,13 @@ class Urukul(Module):
         self.specials += Instance("FDPE", p_INIT=1,
                 i_D=0, i_C=ClockSignal("sck1"), i_CE=sel[2], i_PRE=~sel[2],
                 o_Q=att.le)
+
+        # clock the latch domain from selection deassertion but only after
+        # there was a serial clock edge with asserted select (i.e. ignore
+        # glitches).
+        self.specials += Instance("FDPE", p_INIT=1,
+                i_D=0, i_C=ClockSignal("sck1"), i_CE=~sel[0], i_PRE=sel[0],
+                o_Q=self.cd_le.clk)
 
         self.comb += [
                 cfg.en_9910.eq(en_9910),
